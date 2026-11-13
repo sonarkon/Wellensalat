@@ -3,7 +3,7 @@
 //      H.264 + AAC, muxed with mp4-muxer (loaded from the CDN only when needed).
 //   2. Fallback MediaRecorder: records the running preview in real time (MP4 where the browser
 //      can, otherwise WebM). The tab must stay in front while it records.
-import { t as tr } from './wf-i18n.js?v=dbb9293556';
+import { t as tr } from './wf-i18n.js?v=642939c822';
 
 const MUXER_URL = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/+esm';
 // level 4.2: 1080x1920 at up to 60 fps
@@ -23,7 +23,10 @@ export async function webCodecsConfig(w, h, fps, sr) {
   return { video, audio };
 }
 
-const pause = () => new Promise((r) => setTimeout(r, 0));
+// Give the browser a breath without setTimeout: timers in a background tab are throttled to once a
+// second (or less), which made the export crawl when the tab was not in front. Message events are not.
+const yieldNow = () => new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
+const STALL_MS = 20000;   // no encoder progress for this long = give up with an error instead of hanging
 
 // renderFrame(t, dt) must draw the frame for time t into canvas
 export async function exportWebCodecs({ canvas, fps, clip, cfg, renderFrame, onProgress, signal }) {
@@ -56,21 +59,42 @@ export async function exportWebCodecs({ canvas, fps, clip, cfg, renderFrame, onP
   const frames = Math.ceil(clip.duration * fps), dur = Math.round(1e6 / fps);
   // the afterglow needs a few frames to settle on the first picture
   for (let k = 0; k < 12; k++) renderFrame(0, 1 / fps);
-  for (let i = 0; i < frames; i++) {
+  const check = () => {
     if (signal?.aborted) throw new DOMException('cancelled', 'AbortError');
     if (fail) throw fail;
+    if (venc.state !== 'configured') throw new Error(tr('ex.closed'));
+  };
+  // wait while the encoder is busy, but never forever
+  const drain = async (max) => {
+    const t0 = performance.now();
+    while (venc.encodeQueueSize > max) {
+      check();
+      if (performance.now() - t0 > STALL_MS) throw new Error(tr('ex.stall'));
+      await yieldNow();
+    }
+  };
+  const t0 = performance.now();
+  for (let i = 0; i < frames; i++) {
+    check();
     renderFrame(i / fps, 1 / fps);
     const vf = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps), duration: dur });
     venc.encode(vf, { keyFrame: i % (fps * 2) === 0 });
     vf.close();
-    while (venc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 2));
-    if (i % 6 === 0) { onProgress?.(i / frames); await pause(); }
+    await drain(6);
+    if (i % 3 === 0) {
+      const el = (performance.now() - t0) / 1000;
+      onProgress?.(i / frames, { frame: i + 1, frames, left: i > 10 ? el / (i + 1) * (frames - i - 1) : null });
+      await yieldNow();
+    }
   }
-  await venc.flush(); await aenc.flush();
+  onProgress?.(1, { frame: frames, frames, left: 0, finishing: true });
+  await drain(0);
+  // flush, but with a time limit (a stuck hardware encoder would otherwise hang here)
+  const limit = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(tr('ex.stall'))), STALL_MS * 3))]);
+  await limit(venc.flush()); await limit(aenc.flush());
   if (fail) throw fail;
   muxer.finalize();
   venc.close(); aenc.close();
-  onProgress?.(1);
   return new Blob([target.buffer], { type: 'video/mp4' });
 }
 

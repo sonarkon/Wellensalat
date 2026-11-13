@@ -1,14 +1,14 @@
 // Wellensalat: audio → waveform video (Reels, Shorts, YouTube). Import, cut, fade, pick a view and a
 // look (phosphor raster or Hitchhiker vector – the Augmentor's themes 'phosphor' and 'guide'),
 // add text and subtitles, export an MP4. English by default, German as an option (wf-i18n.js).
-import { Post } from './post.js?v=dbb9293556';
-import { THEMES } from './theme.js?v=dbb9293556';
-import { Scene, VIEWS, FORMATS } from './wf-scene.js?v=dbb9293556';
-import { Analysis, processClip, demoBuffer, decodeFile, columnPeaks, CURVES, layoutSegs, clipToSrc, srcToClip } from './wf-audio.js?v=dbb9293556';
-import { toSRT, parseSRT, chunksToCues, to16k, transcribe, diarize, assignSpeakers, speakersOf } from './wf-subs.js?v=dbb9293556';
-import { webCodecsConfig, exportWebCodecs, exportRecorder, recorderMime } from './wf-export.js?v=dbb9293556';
-import { t as tr, setLang, getLang, dec } from './wf-i18n.js?v=dbb9293556';
-import { APP } from './wf-config.js?v=dbb9293556';
+import { Post } from './post.js?v=642939c822';
+import { THEMES } from './theme.js?v=642939c822';
+import { Scene, VIEWS, FORMATS } from './wf-scene.js?v=642939c822';
+import { Analysis, processClip, demoBuffer, decodeFile, columnPeaks, CURVES, layoutSegs, clipToSrc, srcToClip } from './wf-audio.js?v=642939c822';
+import { toSRT, parseSRT, chunksToCues, to16k, transcribe, diarize, assignSpeakers, speakersOf } from './wf-subs.js?v=642939c822';
+import { webCodecsConfig, exportWebCodecs, exportRecorder, recorderMime } from './wf-export.js?v=642939c822';
+import { t as tr, setLang, getLang, dec } from './wf-i18n.js?v=642939c822';
+import { APP } from './wf-config.js?v=642939c822';
 
 const $ = (id) => document.getElementById(id);
 $('noapp')?.remove();   // the script runs
@@ -651,6 +651,15 @@ $('subAuto').addEventListener('click', async () => {
 let exporting = false, abort = null;
 function setStatus(s, err = false) { $('status').textContent = s; $('status').classList.toggle('err', err); }
 const setBar = (p) => { $('bar').firstElementChild.style.width = `${Math.round(p * 100)}%`; };
+// progress of the export: the bar under the header, a line of text and the percentage on the button
+const leftText = (sec) => (sec == null ? '' : tr('ex.left', { t: sec < 60 ? `${Math.max(1, Math.round(sec))} S` : `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')} MIN` }));
+function showProgress(p, info) {
+  setBar(p);
+  const pct = Math.round(p * 100);
+  if (info?.finishing) setStatus(tr('ex.finishing'));
+  else if (info) setStatus(tr('ex.progress', { i: info.frame, n: info.frames, pct, left: leftText(info.left) }));
+  else setStatus(tr('ex.recprog', { pct }));
+}
 const slug = (s) => (s || 'wellensalat').toLowerCase().normalize('NFKD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '') || 'wellensalat';
 
 async function showMethod() {
@@ -664,6 +673,7 @@ $('export').addEventListener('click', async () => {
   player.stop();
   exporting = true; abort = new AbortController();
   $('export').disabled = true; $('cancel').hidden = false;
+  document.body.classList.add('exporting');
   setBar(0);
   const name = `${slug(S.title || E.name)}_${S.format.replace(':', 'x')}_${S.view}_${S.theme}.mp4`;
   try {
@@ -671,10 +681,10 @@ $('export').addEventListener('click', async () => {
     let blob;
     if (cfg) {
       setStatus(tr('ex.render'));
-      blob = await exportWebCodecs({ canvas: out, fps: S.fps, clip, cfg, renderFrame, onProgress: setBar, signal: abort.signal });
+      blob = await exportWebCodecs({ canvas: out, fps: S.fps, clip, cfg, renderFrame, onProgress: showProgress, signal: abort.signal });
     } else {
       setStatus(tr('ex.record'));
-      blob = await exportRecorder({ canvas: out, fps: S.fps, clip, actx: player.ctx(), drawAt: renderFrame, onProgress: setBar, signal: abort.signal });
+      blob = await exportRecorder({ canvas: out, fps: S.fps, clip, actx: player.ctx(), drawAt: renderFrame, onProgress: showProgress, signal: abort.signal });
     }
     const file = blob.type.includes('webm') ? name.replace(/\.mp4$/, '.webm') : name;
     const url = URL.createObjectURL(blob);
@@ -688,6 +698,7 @@ $('export').addEventListener('click', async () => {
     setBar(0);
   } finally {
     exporting = false; abort = null;
+    document.body.classList.remove('exporting');
     $('export').disabled = false; $('cancel').hidden = true;
     player.pos = 0;
   }

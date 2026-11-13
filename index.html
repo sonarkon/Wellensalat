@@ -27,6 +27,7 @@
   #strip-status { display: flex; gap: 16px; justify-content: space-between; padding: 4px 20px; min-height: 26px; font-size: 12px; color: rgba(var(--ink), .65); }
   #strip-status .err, .err { color: #ff5a4a; }
   #bar { height: 3px; background: transparent; }
+  body.exporting #bar { height: 8px; background: rgba(var(--ink), .18); }
   #bar > div { height: 100%; width: 0; background: rgb(var(--ink)); }
 
   main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; padding: 14px 20px 40px; align-items: start; }
@@ -411,6 +412,6 @@
   <a id="repo" href="#" target="_blank" rel="noopener">GitHub</a>
   <span id="version"></span>
 </footer>
-<script type="module" src="./js/wf-app.js?v=dbb9293556"></script>
+<script type="module" src="./js/wf-app.js?v=642939c822"></script>
 </body>
 </html>

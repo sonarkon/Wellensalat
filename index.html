@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wellenform</title>
+<style>
+  :root {
+    --bg: #000; --ink: 255,153,36; --hi: 255,214,140; --title: var(--ink); --label: var(--ink);
+    --font: "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  }
+  body[data-look="guide"] { --ink: 255,226,60; --hi: 255,255,255; --title: 70,165,255; --label: 105,255,105; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: rgb(var(--ink)); font: 14px/1.45 var(--font); }
+  body { min-height: 100vh; }
+  ::selection { background: rgb(var(--ink)); color: #000; }
+  header { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; padding: 14px 20px 10px; border-bottom: 2px solid rgba(var(--ink), .5); }
+  h1 { margin: 0; font-size: 20px; letter-spacing: .08em; color: rgb(var(--title)); }
+  header .sub { color: rgba(var(--ink), .65); }
+  header .looks { margin-left: auto; display: flex; gap: 8px; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; padding: 18px 20px 40px; align-items: start; }
+  @media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } #preview { order: -1; } }
+  section { border: 2px solid rgba(var(--ink), .55); padding: 12px 14px 14px; margin-bottom: 18px; position: relative; }
+  section > h2 { position: absolute; top: -11px; left: 10px; margin: 0; padding: 0 6px; background: var(--bg); font-size: 13px; letter-spacing: .1em; color: rgb(var(--label)); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 8px 0; }
+  label { display: inline-flex; gap: 8px; align-items: center; color: rgba(var(--ink), .8); text-transform: uppercase; font-size: 12px; letter-spacing: .05em; }
+  button, select, input[type=number], input[type=text] {
+    font: inherit; color: rgb(var(--ink)); background: #000; border: 2px solid rgba(var(--ink), .8); border-radius: 0; padding: 4px 9px;
+  }
+  body[data-look="guide"] button, body[data-look="guide"] select, body[data-look="guide"] input { border-radius: 10px; }
+  button { cursor: pointer; text-transform: uppercase; letter-spacing: .06em; }
+  button:hover { background: rgba(var(--ink), .15); }
+  button.on, button.primary { background: rgb(var(--ink)); color: #000; }
+  button:disabled { opacity: .4; cursor: default; }
+  input[type=number] { width: 86px; }
+  input[type=text] { width: min(100%, 340px); text-transform: uppercase; }
+  input[type=range] { accent-color: rgb(var(--ink)); width: 150px; }
+  input[type=checkbox] { accent-color: rgb(var(--ink)); width: 16px; height: 16px; }
+  .val { min-width: 4.5em; color: rgb(var(--hi)); }
+  .muted { color: rgba(var(--ink), .55); }
+  #drop { border: 2px dashed rgba(var(--ink), .6); padding: 14px; text-align: center; cursor: pointer; }
+  body.dragging #drop { background: rgba(var(--ink), .15); }
+  #ov { width: 100%; height: 170px; display: block; cursor: crosshair; touch-action: none; background: #000; margin-top: 10px; }
+  .time { font-size: 18px; color: rgb(var(--hi)); min-width: 13em; }
+  .views { display: flex; flex-wrap: wrap; gap: 8px; }
+  #preview { position: sticky; top: 14px; }
+  .frame { position: relative; border: 2px solid rgba(var(--ink), .4); }
+  @media (max-width: 960px) { #preview { position: static; } .frame { margin: 0 auto; } }
+  #out { width: 100%; height: 100%; display: block; background: #000; }
+  /* Instagram overlays: top label, caption and buttons at the bottom, icons on the right */
+  .safe { position: absolute; inset: 0; pointer-events: none; display: none; }
+  .safe.on { display: block; }
+  .safe div { position: absolute; background: rgba(255, 40, 40, .18); border: 1px dashed rgba(255, 80, 80, .7); }
+  .safe .top { left: 0; right: 0; top: 0; height: 13%; }
+  .safe .bot { left: 0; right: 0; bottom: 0; height: 22%; }
+  .safe .side { right: 0; width: 12%; top: 48%; bottom: 22%; }
+  .pv-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 8px; }
+  #bar { height: 14px; border: 2px solid rgba(var(--ink), .7); margin: 10px 0 6px; }
+  #bar > div { height: 100%; width: 0; background: rgb(var(--ink)); }
+  #status { min-height: 1.4em; }
+  #status.err { color: #ff5a4a; }
+  a { color: rgb(var(--hi)); }
+  textarea { font: inherit; color: rgb(var(--ink)); background: #000; border: 2px solid rgba(var(--ink), .8); padding: 4px 9px; width: min(100%, 460px); text-transform: uppercase; resize: vertical; }
+  #cues { max-height: 300px; overflow-y: auto; margin-top: 8px; }
+  .cue { display: grid; grid-template-columns: 76px 76px minmax(0, 1fr) auto; gap: 6px; margin: 4px 0; align-items: center; }
+  .cue input { width: 100%; text-transform: none; }
+  .cue input[type=text] { width: 100%; }
+  .cue.now input { border-color: rgb(var(--hi)); }
+  .cue button { padding: 2px 8px; }
+  kbd { border: 1px solid rgba(var(--ink), .6); padding: 0 4px; font: inherit; font-size: 12px; }
+</style>
+</head>
+<body data-look="phosphor">
+<header>
+  <h1>AUDIO → WELLENFORM</h1>
+  <span class="sub" id="fmtinfo">Shorts / Reels · 1080 × 1920</span>
+  <span class="looks">
+    <button data-look="phosphor">Phosphor</button>
+    <button data-look="guide">Guide</button>
+  </span>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>01 · AUDIO</h2>
+      <div id="drop">AUDIODATEI HIERHER ZIEHEN ODER <u>AUSWÄHLEN</u> · WAV MP3 M4A OGG FLAC
+        <input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" hidden>
+      </div>
+      <div class="row"><span id="fileinfo" class="muted">DEMO-SIGNAL (12 S) · NOCH KEINE DATEI GELADEN</span></div>
+      <canvas id="ov"></canvas>
+      <div class="row">
+        <button id="play" class="primary">▶ Abspielen</button>
+        <button id="rew">|◀ Anfang</button>
+        <span class="time" id="time">00:00,0 / 00:00,0</span>
+      </div>
+      <div class="row muted">Ziehen: Bereich wählen · Klammern [ ] verschieben Start/Ende · Quadrate oben = Fades · Klick = Position ·
+        <kbd>Leertaste</kbd> Abspielen · <kbd>I</kbd>/<kbd>O</kbd> Start/Ende an Position</div>
+    </section>
+
+    <section>
+      <h2>02 · SCHNITT &amp; FADES</h2>
+      <div class="row">
+        <label>Start <input id="start" type="number" min="0" step="0.01"> s</label>
+        <label>Ende <input id="end" type="number" min="0" step="0.01"> s</label>
+        <label>Länge <span class="val" id="len">–</span></label>
+        <span id="lenwarn" class="muted"></span>
+      </div>
+      <div class="row">
+        <label>Fade-in <input id="fadeIn" type="number" min="0" step="0.1"> s</label>
+        <label>Fade-out <input id="fadeOut" type="number" min="0" step="0.1"> s</label>
+        <label>Kurve <select id="curve"><option value="soft">weich</option><option value="linear">linear</option><option value="exp">exponentiell</option></select></label>
+      </div>
+      <div class="row">
+        <label><input id="normalize" type="checkbox"> Normalisieren (−1 dB)</label>
+        <label>Pegel <input id="gainDb" type="range" min="-18" max="12" step="0.5"> <span class="val" id="gainDbV"></span></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>03 · BILD</h2>
+      <div class="row views" id="formats"></div>
+      <div class="row views" id="views"></div>
+      <div class="row">
+        <label>Verstärkung <input id="gain" type="range" min="0.3" max="3" step="0.05"> <span class="val" id="gainV"></span></label>
+        <label data-for="scope">Zeitbasis <input id="timebase" type="range" min="5" max="100" step="1"> <span class="val" id="timebaseV"></span></label>
+        <label data-for="xy">X-Y <select id="xyMode"><option value="delay">verzögert</option><option value="stereo">stereo L/R</option></select></label>
+        <label data-for="xy">Verzögerung <input id="xyDelay" type="range" min="0.2" max="10" step="0.1"> <span class="val" id="xyDelayV"></span></label>
+      </div>
+      <div class="row" data-look-only="phosphor">
+        <label>Phosphor <select id="stage">
+          <option value="WACH">Bernstein · kurz</option><option value="N1">N1</option><option value="N2">N2</option>
+          <option value="N3">N3 · Nachleuchten</option><option value="REM">REM · tief, lang</option></select></label>
+      </div>
+      <div class="row">
+        <label><input id="readouts" type="checkbox"> Messzeile</label>
+        <label><input id="strip" type="checkbox"> Verlaufsleiste</label>
+        <label><input id="safe" type="checkbox"> Instagram-Ränder zeigen (nur Vorschau)</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>04 · HINTERGRUND</h2>
+      <div class="row">
+        <button id="bgPick">Bild wählen</button>
+        <button id="bgClear" hidden>Entfernen</button>
+        <input id="bgFile" type="file" accept="image/*" hidden>
+        <span id="bgInfo" class="muted">KEIN BILD · AUCH PER DRAG &amp; DROP</span>
+      </div>
+      <div class="row">
+        <label>Deckkraft <input id="bgOpacity" type="range" min="0.05" max="1" step="0.05"> <span class="val" id="bgOpacityV"></span></label>
+        <label>Feld abdunkeln <input id="bgDim" type="range" min="0" max="1" step="0.05"> <span class="val" id="bgDimV"></span></label>
+      </div>
+      <div class="row muted">Im Phosphor-Look wird das Bild gerastert (4 Graustufen, Bayer-Raster) und eingefärbt.</div>
+    </section>
+
+    <section>
+      <h2>05 · TEXT &amp; UNTERTITEL</h2>
+      <div class="row">
+        <label>Kopfzeile <input id="label" type="text" maxlength="44"></label>
+      </div>
+      <div class="row">
+        <label>Titel <input id="title" type="text" maxlength="40" placeholder="(Dateiname)"></label>
+        <label><input id="typeTitle" type="checkbox"> eintippen</label>
+      </div>
+      <div class="row">
+        <label style="align-items:flex-start">Text <textarea id="text" rows="2" placeholder="Feste Zeile unten (wenn gerade kein Untertitel läuft)"></textarea></label>
+      </div>
+      <div class="row">
+        <label><input id="subtitles" type="checkbox"> Untertitel einblenden</label>
+        <button id="subAuto">Automatisch erkennen</button>
+        <label>Modell <select id="asrModel">
+          <option value="onnx-community/whisper-tiny">Tiny · 40 MB · schnell</option>
+          <option value="onnx-community/whisper-base">Base · 80 MB</option>
+          <option value="onnx-community/whisper-small">Small · 250 MB · genauer</option></select></label>
+        <label>Sprache <select id="asrLang"><option value="german">Deutsch</option><option value="english">Englisch</option><option value="auto">automatisch</option></select></label>
+      </div>
+      <div class="row"><span id="asrStatus" class="muted">Läuft im Browser (Whisper). Das Modell wird beim ersten Mal geladen, das Audio verlässt den Rechner nicht.</span></div>
+      <div class="row">
+        <button id="subAdd">+ Zeile an Position</button>
+        <button id="subImport">SRT laden</button>
+        <button id="subExport">SRT speichern</button>
+        <button id="subClear">Alle löschen</button>
+        <input id="srtFile" type="file" accept=".srt,.vtt,text/plain" hidden>
+      </div>
+      <div id="cues"></div>
+    </section>
+
+    <section>
+      <h2>06 · EXPORT</h2>
+      <div class="row">
+        <label>Bilder/s <select id="fps"><option value="30">30</option><option value="60">60</option></select></label>
+        <button id="export" class="primary">Video exportieren</button>
+        <button id="cancel" hidden>Abbrechen</button>
+        <span id="method" class="muted"></span>
+      </div>
+      <div id="bar"><div></div></div>
+      <div id="status"></div>
+    </section>
+  </div>
+
+  <aside id="preview">
+    <div class="frame">
+      <canvas id="out" width="1080" height="1920"></canvas>
+      <div class="safe" id="safeOv"><div class="top"></div><div class="side"></div><div class="bot"></div></div>
+    </div>
+  </aside>
+</main>
+<script type="module" src="./js/wf-app.js?v=cec359051e"></script>
+</body>
+</html>

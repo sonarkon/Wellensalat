@@ -6,8 +6,10 @@ const ts = (t) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`;
 };
 
+// with two voices in use each text gets a [A] / [B] tag (read back by parseSRT)
 export function toSRT(cues, offset = 0) {
-  return cues.map((c, i) => `${i + 1}\n${ts(c.start - offset)} --> ${ts(c.end - offset)}\n${c.text}\n`).join('\n');
+  const tag = cues.some((c) => c.speaker === 'B');
+  return cues.map((c, i) => `${i + 1}\n${ts(c.start - offset)} --> ${ts(c.end - offset)}\n${tag && c.speaker ? `[${c.speaker}] ` : ''}${c.text}\n`).join('\n');
 }
 
 export function parseSRT(text, offset = 0) {
@@ -19,8 +21,10 @@ export function parseSRT(text, offset = 0) {
     if (k < 0) continue;
     const [a, b] = lines[k].split('-->');
     const start = sec(a), end = sec(b);
-    const body = lines.slice(k + 1).join('\n').replace(/<[^>]+>/g, '').trim();
-    if (Number.isFinite(start) && Number.isFinite(end) && body) cues.push({ start: start + offset, end: end + offset, text: body });
+    let body = lines.slice(k + 1).join('\n').replace(/<[^>]+>/g, '').trim(), speaker = '';
+    const m = body.match(/^\[([AB])\]\s*/i);
+    if (m) { speaker = m[1].toUpperCase(); body = body.slice(m[0].length); }
+    if (Number.isFinite(start) && Number.isFinite(end) && body) cues.push({ start: start + offset, end: end + offset, text: body, speaker });
   }
   return cues.sort((p, q) => p.start - q.start);
 }
@@ -62,9 +66,8 @@ export async function to16k(buf) {
 }
 
 let worker = null;
-// onEvent({ type: 'load' | 'status' | 'done' | 'error', ... })
-export function transcribe(audio, { model, language }, onEvent) {
-  worker = worker || new Worker(new URL('./wf-asr-worker.js?v=cec359051e', import.meta.url), { type: 'module' });
+function run(msg, onEvent) {
+  worker = worker || new Worker(new URL('./wf-asr-worker.js?v=ecd7f971e9', import.meta.url), { type: 'module' });
   return new Promise((resolve, reject) => {
     worker.onmessage = (e) => {
       const m = e.data;
@@ -73,6 +76,34 @@ export function transcribe(audio, { model, language }, onEvent) {
       if (m.type === 'error') reject(new Error(m.message));
     };
     worker.onerror = (e) => reject(new Error(e.message || 'Worker-Fehler'));
-    worker.postMessage({ audio, model, language }, [audio.buffer]);
+    worker.postMessage(msg, [msg.audio.buffer]);
+  });
+}
+
+// onEvent({ type: 'load' | 'status' | 'done' | 'error', ... })
+export const transcribe = (audio, { model, language }, onEvent) => run({ task: 'transcribe', audio, model, language }, onEvent);
+export const diarize = (audio, onEvent) => run({ task: 'diarize', audio }, onEvent);
+
+// who speaks when → A / B per cue. The model labels each stretch with a powerset class:
+// NO_SPEAKER, SPEAKER_1..3, or SPEAKERS_1_AND_2 (both at once). The voice with the most speaking
+// time is A, every other voice B; overlaps count for both. Cues without speech keep the previous voice.
+export function speakersOf(label) {
+  if (!label || /NO_?SPEAKER/i.test(label)) return [];
+  return (String(label).match(/\d+/g) || []).map(Number);
+}
+export function assignSpeakers(cues, segments, offset = 0) {
+  const total = new Map();
+  for (const s of segments) for (const k of speakersOf(s.label)) total.set(k, (total.get(k) || 0) + s.end - s.start);
+  const first = [...total.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  let prev = 'A';
+  return cues.map((q) => {
+    const share = { A: 0, B: 0 };
+    for (const s of segments) {
+      const o = Math.min(q.end, s.end + offset) - Math.max(q.start, s.start + offset);
+      if (o > 0) for (const k of speakersOf(s.label)) share[k === first ? 'A' : 'B'] += o;
+    }
+    const speaker = share.A + share.B > 0 ? (share.B > share.A ? 'B' : 'A') : prev;
+    prev = speaker;
+    return { ...q, speaker };
   });
 }

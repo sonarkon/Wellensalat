@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wellenform</title>
+<title>Wellensalat</title>
+<meta name="description" content="Audio to animated waveform video for Reels, Shorts and YouTube – runs entirely in the browser.">
 <style>
   :root {
     --bg: #000; --ink: 255,153,36; --hi: 255,214,140; --title: var(--ink); --label: var(--ink);
@@ -14,39 +15,102 @@
   html, body { margin: 0; background: var(--bg); color: rgb(var(--ink)); font: 14px/1.45 var(--font); }
   body { min-height: 100vh; }
   ::selection { background: rgb(var(--ink)); color: #000; }
-  header { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; padding: 14px 20px 10px; border-bottom: 2px solid rgba(var(--ink), .5); }
-  h1 { margin: 0; font-size: 20px; letter-spacing: .08em; color: rgb(var(--title)); }
-  header .sub { color: rgba(var(--ink), .65); }
-  header .looks { margin-left: auto; display: flex; gap: 8px; }
-  main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; padding: 18px 20px 40px; align-items: start; }
-  @media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } #preview { order: -1; } }
-  section { border: 2px solid rgba(var(--ink), .55); padding: 12px 14px 14px; margin-bottom: 18px; position: relative; }
-  section > h2 { position: absolute; top: -11px; left: 10px; margin: 0; padding: 0 6px; background: var(--bg); font-size: 13px; letter-spacing: .1em; color: rgb(var(--label)); }
-  .row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 8px 0; }
+  [hidden] { display: none !important; }
+
+  /* --- header: title, project and export ------------------------------------------- */
+  header { display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; padding: 12px 20px; border-bottom: 2px solid rgba(var(--ink), .5); }
+  h1 { margin: 0 8px 0 0; font-size: 20px; letter-spacing: .08em; color: rgb(var(--title)); white-space: nowrap; }
+  header .grow { flex: 1; }
+  header .grp { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  header .sep { width: 2px; align-self: stretch; background: rgba(var(--ink), .35); }
+  /* status strip under the header: messages left, export method right, progress as a thin line */
+  #strip-status { display: flex; gap: 16px; justify-content: space-between; padding: 4px 20px; min-height: 26px; font-size: 12px; color: rgba(var(--ink), .65); }
+  #strip-status .err, .err { color: #ff5a4a; }
+  #bar { height: 3px; background: transparent; }
+  #bar > div { height: 100%; width: 0; background: rgb(var(--ink)); }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; padding: 14px 20px 40px; align-items: start; }
+  @media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } #preview { order: -1; } header .sep { display: none; } }
+
+  /* --- boxes ---------------------------------------------------------------------------- */
+  .panel { border: 2px solid rgba(var(--ink), .55); padding: 12px 14px 14px; margin-bottom: 18px; position: relative; }
+  .panel > h2 { position: absolute; top: -11px; left: 10px; margin: 0; padding: 0 6px; background: var(--bg); font-size: 13px; letter-spacing: .1em; color: rgb(var(--label)); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+  .card { border: 1px solid rgba(var(--ink), .35); padding: 10px 12px 12px; }
+  .card > h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .1em; color: rgb(var(--label)); font-weight: bold; }
+  .card .hint { margin-top: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 8px 0; }
+  .row:first-child { margin-top: 0; }
+  .muted { color: rgba(var(--ink), .55); }
+  .hint { font-size: 12px; color: rgba(var(--ink), .55); }
+
+  /* --- controls ------------------------------------------------------------------------- */
   label { display: inline-flex; gap: 8px; align-items: center; color: rgba(var(--ink), .8); text-transform: uppercase; font-size: 12px; letter-spacing: .05em; }
-  button, select, input[type=number], input[type=text] {
+  button, select, input[type=number], input[type=text], .btn {
     font: inherit; color: rgb(var(--ink)); background: #000; border: 2px solid rgba(var(--ink), .8); border-radius: 0; padding: 4px 9px;
   }
-  body[data-look="guide"] button, body[data-look="guide"] select, body[data-look="guide"] input { border-radius: 10px; }
-  button { cursor: pointer; text-transform: uppercase; letter-spacing: .06em; }
-  button:hover { background: rgba(var(--ink), .15); }
+  body[data-look="guide"] :is(button, select, input, textarea, .btn) { border-radius: 10px; }
+  button, .btn { cursor: pointer; text-transform: uppercase; letter-spacing: .06em; font-size: 13px; }
+  button:hover, .btn:hover { background: rgba(var(--ink), .15); }
   button.on, button.primary { background: rgb(var(--ink)); color: #000; }
   button:disabled { opacity: .4; cursor: default; }
-  input[type=number] { width: 86px; }
-  input[type=text] { width: min(100%, 340px); text-transform: uppercase; }
+  input[type=number] { width: 80px; }
+  input[type=text] { width: 100%; text-transform: uppercase; }
   input[type=range] { accent-color: rgb(var(--ink)); width: 150px; }
-  input[type=checkbox] { accent-color: rgb(var(--ink)); width: 16px; height: 16px; }
+  input[type=checkbox] { accent-color: rgb(var(--ink)); width: 16px; height: 16px; margin: 0; }
+  textarea { font: inherit; color: rgb(var(--ink)); background: #000; border: 2px solid rgba(var(--ink), .8); padding: 4px 9px; width: 100%; text-transform: uppercase; resize: vertical; }
   .val { min-width: 4.5em; color: rgb(var(--hi)); }
-  .muted { color: rgba(var(--ink), .55); }
-  #drop { border: 2px dashed rgba(var(--ink), .6); padding: 14px; text-align: center; cursor: pointer; }
-  body.dragging #drop { background: rgba(var(--ink), .15); }
-  #ov { width: 100%; height: 170px; display: block; cursor: crosshair; touch-action: none; background: #000; margin-top: 10px; }
-  .time { font-size: 18px; color: rgb(var(--hi)); min-width: 13em; }
-  .views { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* a slider line in a card: name | slider | value */
+  .rng { display: grid; grid-template-columns: 8.2em minmax(70px, 1fr) 6.4em; width: 100%; gap: 8px; margin: 6px 0; }
+  .rng input[type=range] { width: 100%; }
+  .rng .val { min-width: 0; text-align: right; white-space: nowrap; }
+  /* a field line in a card: name | field */
+  .fld { display: grid; grid-template-columns: 8.2em minmax(0, 1fr); width: 100%; gap: 8px; margin: 6px 0; }
+  .chk { margin: 6px 16px 6px 0; }
+  .seg { display: inline-flex; gap: 0; }
+  .seg button + button { border-left-width: 0; }
+  .views { display: flex; flex-wrap: wrap; gap: 6px; }
+  a { color: rgb(var(--hi)); }
+  kbd { border: 1px solid rgba(var(--ink), .6); padding: 0 4px; font: inherit; font-size: 12px; }
+  details.help > summary { cursor: pointer; list-style: none; display: inline-block; border: 2px solid rgba(var(--ink), .6); padding: 0 8px; font-size: 12px; }
+  details.help > summary::-webkit-details-marker { display: none; }
+  details.help[open] > summary { background: rgba(var(--ink), .15); }
+  details.help .hint { margin-top: 8px; line-height: 1.6; }
+
+  /* --- timeline ------------------------------------------------------------------------- */
+  .tl-top, .tl-bottom { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .tl-top .grow, .tl-bottom .grow { flex: 1; }
+  #segs { display: inline-flex; gap: 0; }
+  #segs button { min-width: 2.8em; border-bottom-width: 0; }
+  #segs button + button { border-left-width: 0; }
+  #ov { width: 100%; height: 170px; display: block; cursor: crosshair; touch-action: none; background: #000; border: 2px solid rgba(var(--ink), .8); }
+  #drop { display: inline-flex; border: 2px dashed rgba(var(--ink), .7); padding: 4px 10px; cursor: pointer; color: rgb(var(--ink)); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+  #drop:hover, body.dragging #drop { background: rgba(var(--ink), .15); }
+  body.dragging #ov { border-style: dashed; }
+  .tl-bottom { margin-top: 10px; }
+  .time { font-size: 16px; color: rgb(var(--hi)); white-space: nowrap; }
+  /* the active range: its fields in one line, numbered like its tab */
+  .active-range { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 12px; padding: 8px 10px; border: 1px solid rgba(var(--ink), .35); }
+  .active-range .tag { background: rgb(var(--ink)); color: #000; padding: 0 7px; font-weight: bold; }
+  details.more { margin-top: 10px; }
+  details.more > summary { cursor: pointer; font-size: 12px; letter-spacing: .08em; color: rgba(var(--ink), .8); }
+  details.more > .row { margin-top: 10px; }
+
+  /* --- tabs ----------------------------------------------------------------------------- */
+  .tabs { display: flex; gap: 0; flex-wrap: wrap; }
+  .tabs button { border-bottom-width: 0; padding: 6px 14px; }
+  .tabs button + button { border-left-width: 0; }
+  .tabs button.on { background: rgb(var(--ink)); color: #000; }
+  .tabpanel { border: 2px solid rgba(var(--ink), .8); padding: 14px; }
+
+  /* --- preview -------------------------------------------------------------------------- */
   #preview { position: sticky; top: 14px; }
+  .pv-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-bottom: 6px; color: rgba(var(--ink), .7); }
   .frame { position: relative; border: 2px solid rgba(var(--ink), .4); }
-  @media (max-width: 960px) { #preview { position: static; } .frame { margin: 0 auto; } }
-  #out { width: 100%; height: 100%; display: block; background: #000; }
+  @media (max-width: 960px) { #preview { position: static; } .frame, .pv-head { margin-left: auto; margin-right: auto; } }
+  #out { width: 100%; height: 100%; display: block; background: #000; touch-action: none; }
+  body.hasbg #out { cursor: grab; }
+  body.hasbg #out:active { cursor: grabbing; }
   /* Instagram overlays: top label, caption and buttons at the bottom, icons on the right */
   .safe { position: absolute; inset: 0; pointer-events: none; display: none; }
   .safe.on { display: block; }
@@ -54,157 +118,299 @@
   .safe .top { left: 0; right: 0; top: 0; height: 13%; }
   .safe .bot { left: 0; right: 0; bottom: 0; height: 22%; }
   .safe .side { right: 0; width: 12%; top: 48%; bottom: 22%; }
-  .pv-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 8px; }
-  #bar { height: 14px; border: 2px solid rgba(var(--ink), .7); margin: 10px 0 6px; }
-  #bar > div { height: 100%; width: 0; background: rgb(var(--ink)); }
-  #status { min-height: 1.4em; }
-  #status.err { color: #ff5a4a; }
-  a { color: rgb(var(--hi)); }
-  textarea { font: inherit; color: rgb(var(--ink)); background: #000; border: 2px solid rgba(var(--ink), .8); padding: 4px 9px; width: min(100%, 460px); text-transform: uppercase; resize: vertical; }
-  #cues { max-height: 300px; overflow-y: auto; margin-top: 8px; }
-  .cue { display: grid; grid-template-columns: 76px 76px minmax(0, 1fr) auto; gap: 6px; margin: 4px 0; align-items: center; }
+  .transport { display: flex; gap: 8px; align-items: center; margin: 10px auto 0; }
+  .transport button { min-width: 2.8em; }
+  .transport input[type=range] { flex: 1; min-width: 60px; width: auto; }
+  .time2 { color: rgb(var(--hi)); white-space: nowrap; font-size: 13px; }
+
+  /* --- subtitles list ------------------------------------------------------------------- */
+  #cues { max-height: 340px; overflow-y: auto; margin-top: 10px; border-top: 1px solid rgba(var(--ink), .35); padding-top: 6px; }
+  .cue { display: grid; grid-template-columns: auto 76px 76px 40px minmax(0, 1fr) auto auto auto; gap: 6px; margin: 4px 0; align-items: center; }
   .cue input { width: 100%; text-transform: none; }
-  .cue input[type=text] { width: 100%; }
   .cue.now input { border-color: rgb(var(--hi)); }
+  .cue.cut { opacity: .45; }
   .cue button { padding: 2px 8px; }
-  kbd { border: 1px solid rgba(var(--ink), .6); padding: 0 4px; font: inherit; font-size: 12px; }
+  .cue .spk.b { background: rgb(var(--ink)); color: #000; }
+  .cue.b input[type=text] { text-align: right; }
+  body:not(.voices) .cue { grid-template-columns: auto 76px 76px minmax(0, 1fr) auto auto auto; }
+  body:not(.voices) .cue .spk { display: none; }
+
+  #noapp { border: 2px solid #ff5a4a; color: #ff5a4a; padding: 12px; margin: 16px 20px 0; visibility: hidden; animation: noapp 0s 3s forwards; }
+  @keyframes noapp { to { visibility: visible; } }
+  /* footer: Ko-fi, repository, version (bottom right) */
+  footer { display: flex; justify-content: flex-end; gap: 16px; align-items: center; font-size: 12px; padding: 10px 20px 16px; border-top: 1px solid rgba(var(--ink), .25); }
+  footer a { color: rgb(var(--ink)); text-decoration: none; }
+  footer a:hover { color: rgb(var(--hi)); text-decoration: underline; }
+  footer #kofi { color: rgb(var(--hi)); }
+  #version { color: rgba(var(--ink), .55); }
+  header .tagline { font-size: 12px; color: rgba(var(--ink), .6); letter-spacing: .06em; }
+  #langs button { padding: 3px 8px; font-size: 12px; }
 </style>
 </head>
 <body data-look="phosphor">
 <header>
-  <h1>AUDIO → WELLENFORM</h1>
-  <span class="sub" id="fmtinfo">Shorts / Reels · 1080 × 1920</span>
-  <span class="looks">
-    <button data-look="phosphor">Phosphor</button>
-    <button data-look="guide">Guide</button>
+  <h1>WELLENSALAT</h1>
+  <span class="tagline" data-de="Audio → Wellenform-Video">Audio → waveform video</span>
+  <span class="grow"></span>
+  <span class="grp">
+    <button id="projOpen" title="Open a saved project (.json) – or just drop it onto the page" data-de-title="Gespeichertes Projekt (.json) öffnen – oder einfach auf die Seite ziehen"><span data-de="Öffnen">Open</span></button>
+    <button id="projSave" title="Save cut, picture, texts and subtitles as .json (no video)" data-de-title="Schnitt, Bild, Texte und Untertitel als .json speichern (ohne Video)"><span data-de="Speichern">Save</span></button>
+    <label title="Pack the audio file and background picture into the project file so it opens anywhere" data-de-title="Audiodatei und Hintergrundbild in die Projektdatei packen, damit sie überall wieder aufgeht"><input id="projEmbed" type="checkbox" checked> <span data-de="mit Audio &amp; Bild">with audio &amp; picture</span></label>
+    <input id="projFile" type="file" accept=".json,.wellensalat,.wellenform,application/json" hidden>
+  </span>
+  <span class="sep"></span>
+  <span class="grp">
+    <label><span data-de="Bilder/s">Frames/s</span> <select id="fps"><option value="30">30</option><option value="60">60</option></select></label>
+    <button id="export" class="primary"><span data-de="Video exportieren">Export video</span></button>
+    <button id="cancel" hidden><span data-de="Abbrechen">Cancel</span></button>
+  </span>
+  <span class="sep"></span>
+  <span class="seg" id="langs" title="Language / Sprache">
+    <button data-lang="en">EN</button><button data-lang="de">DE</button>
   </span>
 </header>
+<div id="bar"><div></div></div>
+<div id="strip-status">
+  <span><span id="status"></span> <span id="projStatus"></span></span>
+  <span id="method"></span>
+</div>
+<div id="noapp">THE PROGRAM HAS NOT STARTED. The page has to be opened through a web server
+  (e.g. GitHub Pages or <code>python3 -m http.server</code> in its folder), not by double-clicking the file.</div>
+
 <main>
   <div>
-    <section>
-      <h2>01 · AUDIO</h2>
-      <div id="drop">AUDIODATEI HIERHER ZIEHEN ODER <u>AUSWÄHLEN</u> · WAV MP3 M4A OGG FLAC
-        <input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" hidden>
+    <!-- ============ timeline: audio, ranges, fades ============ -->
+    <section class="panel">
+      <h2 data-de="AUDIO &amp; SCHNITT">AUDIO &amp; CUT</h2>
+      <div class="tl-top">
+        <!-- a label opens the file dialog natively (no scripted click, works in every browser) -->
+        <label id="drop" for="file" title="Or drop a file anywhere on the page" data-de-title="Oder eine Datei irgendwo auf die Seite ziehen"><span data-de="♪ Audio laden …">♪ Load audio …</span></label>
+        <input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac,.aif,.aiff" hidden>
+        <span id="fileinfo" class="muted"></span>
+        <span id="importStatus"></span>
+        <span class="grow"></span>
+        <details class="help"><summary>?</summary>
+          <div class="hint" data-de="Datei laden: Knopf oder irgendwo auf die Seite ziehen (auch Bilder und Projektdateien).<br>
+            Wellenform: Ziehen = aktiven Bereich neu wählen · Klammern [ ] = Start/Ende · Quadrate oben = Fades ·
+            Klick in einen Bereich = dorthin springen.<br>
+            <kbd>Leertaste</kbd> Abspielen · <kbd>I</kbd> / <kbd>O</kbd> Start / Ende an der Abspielposition.<br>
+            Bereiche werden in der Reihenfolge der Reiter aneinandergehängt. Ohne Pause blenden Fade-out und
+            Fade-in ineinander (Überlappung = der kürzere Fade), mit Pause liegt Stille dazwischen.">
+            Load a file: the button, or drop it anywhere on the page (pictures and project files too).<br>
+            Waveform: drag = choose the active range anew · brackets [ ] = start/end · squares at the top = fades ·
+            click into a range = jump there.<br>
+            <kbd>Space</kbd> play · <kbd>I</kbd> / <kbd>O</kbd> start / end at the play position.<br>
+            Ranges are joined in the order of their tabs. Without a pause, fade-out and fade-in cross-fade
+            (overlap = the shorter fade); with a pause there is silence between them.
+          </div>
+        </details>
       </div>
-      <div class="row"><span id="fileinfo" class="muted">DEMO-SIGNAL (12 S) · NOCH KEINE DATEI GELADEN</span></div>
+
+      <div class="tl-top" style="margin-top:12px; align-items:flex-end">
+        <span id="segs" title="Ranges in playing order" data-de-title="Bereiche in Abspielreihenfolge"></span>
+        <button id="segAdd" title="Add another range (as long as the active one)" data-de-title="Weiteren Bereich anhängen (so lang wie der aktive)" style="border-bottom-width:0">+</button>
+        <span id="segHint" hidden></span>
+        <span class="grow"></span>
+        <span class="muted" style="font-size:12px"><span data-de="GESAMT">TOTAL</span> <span class="val" id="total">–</span> <span id="lenwarn"></span></span>
+      </div>
       <canvas id="ov"></canvas>
-      <div class="row">
-        <button id="play" class="primary">▶ Abspielen</button>
-        <button id="rew">|◀ Anfang</button>
-        <span class="time" id="time">00:00,0 / 00:00,0</span>
+
+      <div class="active-range">
+        <span class="tag" id="segTag">1</span>
+        <label><span data-de="Start">Start</span> <input id="start" type="number" min="0" step="0.01"></label>
+        <label><span data-de="Ende">End</span> <input id="end" type="number" min="0" step="0.01"></label>
+        <label><span data-de="Länge">Length</span> <span class="val" id="len">–</span></label>
+        <label>Fade-in <input id="fadeIn" type="number" min="0" step="0.1"></label>
+        <label>Fade-out <input id="fadeOut" type="number" min="0" step="0.1"></label>
+        <span class="grow" style="flex:1"></span>
+        <span class="seg">
+          <button id="segLeft" title="Move range forward" data-de-title="Bereich nach vorn">◀</button>
+          <button id="segRight" title="Move range back" data-de-title="Bereich nach hinten">▶</button>
+          <button id="segDel" title="Remove range" data-de-title="Bereich entfernen">✕</button>
+        </span>
       </div>
-      <div class="row muted">Ziehen: Bereich wählen · Klammern [ ] verschieben Start/Ende · Quadrate oben = Fades · Klick = Position ·
-        <kbd>Leertaste</kbd> Abspielen · <kbd>I</kbd>/<kbd>O</kbd> Start/Ende an Position</div>
+
+      <div class="tl-bottom">
+        <button id="play" class="primary">▶ Play</button>
+        <button id="rew">|◀</button>
+        <span class="time" id="time">00:00.0 / 00:00.0</span>
+      </div>
+
+      <details class="more">
+        <summary data-de="PEGEL, KURVE, PAUSE">LEVEL, CURVE, PAUSE</summary>
+        <div class="row">
+          <label><span data-de="Fade-Kurve">Fade curve</span> <select id="curve">
+            <option value="soft" data-de="weich">soft</option><option value="linear" data-de="linear">linear</option><option value="exp" data-de="exponentiell">exponential</option></select></label>
+          <label><input id="normalize" type="checkbox"> <span data-de="Normalisieren (−1 dB)">Normalize (−1 dB)</span></label>
+          <label><span data-de="Pegel">Level</span> <input id="gainDb" type="range" min="-18" max="12" step="0.5"> <span class="val" id="gainDbV"></span></label>
+          <label id="gapL"><span data-de="Pause zwischen Bereichen">Pause between ranges</span> <input id="gap" type="number" min="0" max="10" step="0.1"> s</label>
+        </div>
+      </details>
     </section>
 
-    <section>
-      <h2>02 · SCHNITT &amp; FADES</h2>
-      <div class="row">
-        <label>Start <input id="start" type="number" min="0" step="0.01"> s</label>
-        <label>Ende <input id="end" type="number" min="0" step="0.01"> s</label>
-        <label>Länge <span class="val" id="len">–</span></label>
-        <span id="lenwarn" class="muted"></span>
-      </div>
-      <div class="row">
-        <label>Fade-in <input id="fadeIn" type="number" min="0" step="0.1"> s</label>
-        <label>Fade-out <input id="fadeOut" type="number" min="0" step="0.1"> s</label>
-        <label>Kurve <select id="curve"><option value="soft">weich</option><option value="linear">linear</option><option value="exp">exponentiell</option></select></label>
-      </div>
-      <div class="row">
-        <label><input id="normalize" type="checkbox"> Normalisieren (−1 dB)</label>
-        <label>Pegel <input id="gainDb" type="range" min="-18" max="12" step="0.5"> <span class="val" id="gainDbV"></span></label>
-      </div>
-    </section>
+    <!-- ============ tabs ============ -->
+    <nav class="tabs" id="tabs">
+      <button data-tab="bild"><span data-de="Bild">Picture</span></button>
+      <button data-tab="hg"><span data-de="Hintergrund">Background</span></button>
+      <button data-tab="text"><span data-de="Text">Text</span></button>
+      <button data-tab="ut"><span data-de="Untertitel">Subtitles</span></button>
+    </nav>
 
-    <section>
-      <h2>03 · BILD</h2>
-      <div class="row views" id="formats"></div>
-      <div class="row views" id="views"></div>
-      <div class="row">
-        <label>Verstärkung <input id="gain" type="range" min="0.3" max="3" step="0.05"> <span class="val" id="gainV"></span></label>
-        <label data-for="scope">Zeitbasis <input id="timebase" type="range" min="5" max="100" step="1"> <span class="val" id="timebaseV"></span></label>
-        <label data-for="xy">X-Y <select id="xyMode"><option value="delay">verzögert</option><option value="stereo">stereo L/R</option></select></label>
-        <label data-for="xy">Verzögerung <input id="xyDelay" type="range" min="0.2" max="10" step="0.1"> <span class="val" id="xyDelayV"></span></label>
-      </div>
-      <div class="row" data-look-only="phosphor">
-        <label>Phosphor <select id="stage">
-          <option value="WACH">Bernstein · kurz</option><option value="N1">N1</option><option value="N2">N2</option>
-          <option value="N3">N3 · Nachleuchten</option><option value="REM">REM · tief, lang</option></select></label>
-      </div>
-      <div class="row">
-        <label><input id="readouts" type="checkbox"> Messzeile</label>
-        <label><input id="strip" type="checkbox"> Verlaufsleiste</label>
-        <label><input id="safe" type="checkbox"> Instagram-Ränder zeigen (nur Vorschau)</label>
-      </div>
-    </section>
+    <!-- PICTURE -->
+    <div class="tabpanel" data-panel="bild">
+      <div class="cards">
+        <div class="card">
+          <h3>LOOK</h3>
+          <div class="row"><span class="seg">
+            <button data-look="phosphor">Phosphor</button>
+            <button data-look="guide">Hitchhiker</button>
+          </span></div>
+          <label class="fld" data-look-only="phosphor"><span data-de="Phosphor">Phosphor</span> <select id="stage">
+            <option value="WACH" data-de="Bernstein · kurz">Amber · short</option><option value="N1">N1</option><option value="N2">N2</option>
+            <option value="N3" data-de="N3 · Nachleuchten">N3 · afterglow</option><option value="REM" data-de="REM · tief, lang, Glow">REM · deep, long, glow</option></select></label>
+          <label class="rng">Glow <input id="glow" type="range" min="0" max="2.5" step="0.05"> <span class="val" id="glowV"></span></label>
+          <label class="rng"><span data-de="Nachleuchten">Afterglow</span> <input id="persist" type="range" min="0" max="0.97" step="0.01"> <span class="val" id="persistV"></span></label>
+        </div>
 
-    <section>
-      <h2>04 · HINTERGRUND</h2>
-      <div class="row">
-        <button id="bgPick">Bild wählen</button>
-        <button id="bgClear" hidden>Entfernen</button>
-        <input id="bgFile" type="file" accept="image/*" hidden>
-        <span id="bgInfo" class="muted">KEIN BILD · AUCH PER DRAG &amp; DROP</span>
-      </div>
-      <div class="row">
-        <label>Deckkraft <input id="bgOpacity" type="range" min="0.05" max="1" step="0.05"> <span class="val" id="bgOpacityV"></span></label>
-        <label>Feld abdunkeln <input id="bgDim" type="range" min="0" max="1" step="0.05"> <span class="val" id="bgDimV"></span></label>
-      </div>
-      <div class="row muted">Im Phosphor-Look wird das Bild gerastert (4 Graustufen, Bayer-Raster) und eingefärbt.</div>
-    </section>
+        <div class="card">
+          <h3>FORMAT</h3>
+          <div class="views" id="formats"></div>
+          <div class="hint" id="fmtinfo"></div>
+          <div class="row" style="margin-top:10px">
+            <label class="chk"><input id="readouts" type="checkbox"> <span data-de="Messzeile">Readout line</span></label>
+            <label class="chk"><input id="strip" type="checkbox"> <span data-de="Verlaufsleiste">Progress strip</span></label>
+            <label class="chk"><input id="safe" type="checkbox"> <span data-de="Instagram-Ränder (nur Vorschau)">Instagram margins (preview only)</span></label>
+          </div>
+        </div>
 
-    <section>
-      <h2>05 · TEXT &amp; UNTERTITEL</h2>
-      <div class="row">
-        <label>Kopfzeile <input id="label" type="text" maxlength="44"></label>
+        <div class="card">
+          <h3 data-de="ANSICHT">VIEW</h3>
+          <div class="views" id="views"></div>
+          <label class="rng" style="margin-top:10px"><span data-de="Verstärkung">Gain</span> <input id="gain" type="range" min="0.3" max="3" step="0.05"> <span class="val" id="gainV"></span></label>
+          <label class="rng"><span data-de="Glättung">Smoothing</span> <input id="smoothing" type="range" min="0" max="1" step="0.05"> <span class="val" id="smoothingV"></span></label>
+          <label class="rng" data-for="scope"><span data-de="Zeitbasis">Time base</span> <input id="timebase" type="range" min="5" max="100" step="1"> <span class="val" id="timebaseV"></span></label>
+          <label class="fld" data-for="xy"><span data-de="X-Y-Quelle">X-Y source</span> <select id="xyMode"><option value="delay" data-de="verzögert">delayed</option><option value="stereo" data-de="stereo L/R">stereo L/R</option></select></label>
+          <label class="rng" data-for="xy" id="xyDelayL"><span data-de="Verzögerung">Delay</span> <input id="xyDelay" type="range" min="0.2" max="10" step="0.1"> <span class="val" id="xyDelayV"></span></label>
+          <label class="rng" data-for="xy"><span data-de="Drehtempo">Spin</span> <input id="xySpin" type="range" min="-120" max="120" step="1"> <span class="val" id="xySpinV"></span></label>
+          <label class="rng" data-for="xy"><span data-de="Neigung">Tilt</span> <input id="xyTilt" type="range" min="-60" max="60" step="1"> <span class="val" id="xyTiltV"></span></label>
+        </div>
       </div>
-      <div class="row">
-        <label>Titel <input id="title" type="text" maxlength="40" placeholder="(Dateiname)"></label>
-        <label><input id="typeTitle" type="checkbox"> eintippen</label>
+    </div>
+
+    <!-- BACKGROUND -->
+    <div class="tabpanel" data-panel="hg" hidden>
+      <div class="cards">
+        <div class="card">
+          <h3 data-de="BILD">PICTURE</h3>
+          <div class="row">
+            <button id="bgPick"><span data-de="Bild wählen">Choose picture</span></button>
+            <button id="bgClear" hidden><span data-de="Entfernen">Remove</span></button>
+            <input id="bgFile" type="file" accept="image/*" hidden>
+          </div>
+          <div class="hint" id="bgInfo"></div>
+          <div class="hint" data-de="Im Phosphor-Look wird das Bild gerastert (4 Graustufen, Bayer-Raster) und eingefärbt.">In the phosphor look the picture is rastered (4 grey levels, Bayer dither) and tinted.</div>
+        </div>
+        <div class="card">
+          <h3 data-de="DARSTELLUNG">APPEARANCE</h3>
+          <label class="rng"><span data-de="Deckkraft">Opacity</span> <input id="bgOpacity" type="range" min="0.05" max="1" step="0.05"> <span class="val" id="bgOpacityV"></span></label>
+          <label class="rng"><span data-de="Feld abdunkeln">Darken panel</span> <input id="bgDim" type="range" min="0" max="1" step="0.05"> <span class="val" id="bgDimV"></span></label>
+        </div>
+        <div class="card">
+          <h3 data-de="AUSSCHNITT">FRAMING</h3>
+          <label class="rng"><span data-de="Größe">Size</span> <input id="bgZoom" type="range" min="1" max="4" step="0.01"> <span class="val" id="bgZoomV"></span></label>
+          <label class="rng"><span data-de="Links/rechts">Left/right</span> <input id="bgX" type="range" min="-1" max="1" step="0.01"> <span></span></label>
+          <label class="rng"><span data-de="Oben/unten">Up/down</span> <input id="bgY" type="range" min="-1" max="1" step="0.01"> <span></span></label>
+          <div class="row" style="margin-top:8px"><button id="bgReset" title="Centre the picture and fill the frame again" data-de-title="Bild wieder mittig und bildfüllend"><span data-de="Zurücksetzen">Reset</span></button></div>
+          <div class="hint" data-de="In der Vorschau: ziehen = verschieben, Mausrad = Größe. Das Bild füllt immer den ganzen Rahmen.">In the preview: drag = move, mouse wheel = size. The picture always fills the whole frame.</div>
+        </div>
       </div>
-      <div class="row">
-        <label style="align-items:flex-start">Text <textarea id="text" rows="2" placeholder="Feste Zeile unten (wenn gerade kein Untertitel läuft)"></textarea></label>
+    </div>
+
+    <!-- TEXT -->
+    <div class="tabpanel" data-panel="text" hidden>
+      <div class="cards">
+        <div class="card">
+          <h3 data-de="OBEN">TOP</h3>
+          <label class="fld"><span data-de="Kopfzeile">Header</span> <input id="label" type="text" maxlength="200"></label>
+          <label class="fld"><span data-de="Titel">Title</span> <input id="title" type="text" maxlength="200" placeholder="(file name)" data-de-placeholder="(Dateiname)"></label>
+          <label class="chk"><input id="typeTitle" type="checkbox"> <span data-de="Titel eintippen">Type the title in</span></label>
+          <div class="hint" data-de="Was nicht in die Breite passt, läuft als Laufschrift durch.">Anything too wide runs through as a ticker.</div>
+        </div>
+        <div class="card">
+          <h3 data-de="UNTEN">BOTTOM</h3>
+          <label class="fld" style="align-items:start"><span data-de="Text">Text</span> <textarea id="text" rows="3" placeholder="Fixed line at the bottom" data-de-placeholder="Feste Zeile unten"></textarea></label>
+          <div class="hint" data-de="Erscheint, wenn gerade kein Untertitel läuft.">Shown while no subtitle is running.</div>
+        </div>
       </div>
+    </div>
+
+    <!-- SUBTITLES -->
+    <div class="tabpanel" data-panel="ut" hidden>
       <div class="row">
-        <label><input id="subtitles" type="checkbox"> Untertitel einblenden</label>
-        <button id="subAuto">Automatisch erkennen</button>
-        <label>Modell <select id="asrModel">
-          <option value="onnx-community/whisper-tiny">Tiny · 40 MB · schnell</option>
-          <option value="onnx-community/whisper-base">Base · 80 MB</option>
-          <option value="onnx-community/whisper-small">Small · 250 MB · genauer</option></select></label>
-        <label>Sprache <select id="asrLang"><option value="german">Deutsch</option><option value="english">Englisch</option><option value="auto">automatisch</option></select></label>
+        <label class="chk"><input id="subtitles" type="checkbox"> <span data-de="Untertitel einblenden">Show subtitles</span></label>
       </div>
-      <div class="row"><span id="asrStatus" class="muted">Läuft im Browser (Whisper). Das Modell wird beim ersten Mal geladen, das Audio verlässt den Rechner nicht.</span></div>
-      <div class="row">
-        <button id="subAdd">+ Zeile an Position</button>
-        <button id="subImport">SRT laden</button>
-        <button id="subExport">SRT speichern</button>
-        <button id="subClear">Alle löschen</button>
-        <input id="srtFile" type="file" accept=".srt,.vtt,text/plain" hidden>
+      <div class="cards">
+        <div class="card">
+          <h3 data-de="AUTOMATISCH ERKENNEN">AUTOMATIC RECOGNITION</h3>
+          <label class="fld"><span data-de="Modell">Model</span> <select id="asrModel">
+            <option value="onnx-community/whisper-tiny" data-de="Tiny · 40 MB · schnell">Tiny · 40 MB · fast</option>
+            <option value="onnx-community/whisper-base">Base · 80 MB</option>
+            <option value="onnx-community/whisper-small" data-de="Small · 250 MB · genauer">Small · 250 MB · more accurate</option></select></label>
+          <label class="fld"><span data-de="Sprache">Language</span> <select id="asrLang"><option value="english" data-de="Englisch">English</option><option value="german" data-de="Deutsch">German</option><option value="auto" data-de="automatisch">automatic</option></select></label>
+          <label class="chk"><input id="autoVoices" type="checkbox"> <span data-de="dabei Stimmen trennen">separate voices as well</span></label>
+          <div class="row" style="margin-top:8px"><button id="subAuto" class="primary"><span data-de="Erkennen">Recognise</span></button></div>
+          <div class="hint" id="asrStatus" data-de="Läuft im Browser (Whisper). Das Modell wird beim ersten Mal geladen, das Audio verlässt den Rechner nicht.">Runs in the browser (Whisper). The model is downloaded the first time; the audio never leaves your computer.</div>
+        </div>
+        <div class="card">
+          <h3 data-de="ZWEI STIMMEN">TWO VOICES</h3>
+          <label class="chk"><input id="voices" type="checkbox"> <span data-de="Stimmen links / rechts setzen">Set voices left / right</span></label>
+          <div class="row" style="margin-top:8px">
+            <button id="flipVoices" title="Swap the voices' sides" data-de-title="Seiten der Stimmen tauschen">⇄ <span id="flipLabel"></span></button>
+            <button id="subVoices" title="Assign the existing lines to A or B automatically" data-de-title="Vorhandene Zeilen automatisch A oder B zuordnen"><span data-de="Zuordnen">Assign</span></button>
+          </div>
+          <div class="hint" data-de="Pro Zeile schaltet der A/B-Knopf die Stimme um.">The A/B button on each line switches its voice.</div>
+        </div>
+        <div class="card">
+          <h3 data-de="DATEIEN">FILES</h3>
+          <div class="row">
+            <button id="subImport"><span data-de="SRT laden">Load SRT</span></button>
+            <button id="subExport"><span data-de="SRT speichern">Save SRT</span></button>
+          </div>
+          <input id="srtFile" type="file" accept=".srt,.vtt,text/plain" hidden>
+          <div class="hint" data-de="Zeiten in der SRT sind Zeiten im fertigen Clip.">Times in the SRT are times in the finished clip.</div>
+        </div>
       </div>
+      <div class="row" style="margin-top:14px">
+        <button id="subAdd"><span data-de="+ Zeile an Position">+ Line at position</span></button>
+        <span class="grow" style="flex:1"></span>
+        <button id="subClear"><span data-de="Alle löschen">Delete all</span></button>
+      </div>
+      <div class="hint" data-de="▶ springt zur Zeile · A/B Stimme · ↑ ↓ mit Zeile darüber / darunter zusammenführen · ✕ löschen">▶ jumps to the line · A/B voice · ↑ ↓ merge with the line above / below · ✕ delete</div>
       <div id="cues"></div>
-    </section>
-
-    <section>
-      <h2>06 · EXPORT</h2>
-      <div class="row">
-        <label>Bilder/s <select id="fps"><option value="30">30</option><option value="60">60</option></select></label>
-        <button id="export" class="primary">Video exportieren</button>
-        <button id="cancel" hidden>Abbrechen</button>
-        <span id="method" class="muted"></span>
-      </div>
-      <div id="bar"><div></div></div>
-      <div id="status"></div>
-    </section>
+    </div>
   </div>
 
+  <!-- ============ preview ============ -->
   <aside id="preview">
+    <div class="pv-head" id="pvHead"><span data-de="VORSCHAU">PREVIEW</span><span id="pvFmt"></span></div>
     <div class="frame">
       <canvas id="out" width="1080" height="1920"></canvas>
       <div class="safe" id="safeOv"><div class="top"></div><div class="side"></div><div class="bot"></div></div>
     </div>
+    <div class="transport" id="transport2">
+      <button id="play2" class="primary" title="Play / stop (space)" data-de-title="Abspielen / Stopp (Leertaste)">▶</button>
+      <button id="rew2" title="Back to the start" data-de-title="An den Anfang">|◀</button>
+      <input id="scrub" type="range" min="0" max="1" step="0.001" value="0" title="Position">
+      <span class="time2" id="time2">00:00.0 / 00:00.0</span>
+    </div>
   </aside>
 </main>
-<script type="module" src="./js/wf-app.js?v=cec359051e"></script>
+
+<footer id="foot">
+  <a id="kofi" href="#" target="_blank" rel="noopener" hidden>♥ Ko-fi</a>
+  <a id="repo" href="#" target="_blank" rel="noopener">GitHub</a>
+  <span id="version"></span>
+</footer>
+<script type="module" src="./js/wf-app.js?v=ecd7f971e9"></script>
 </body>
 </html>

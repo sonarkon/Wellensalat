@@ -1,8 +1,10 @@
-// Waveform tool, video export (1080x1920 MP4 for Instagram).
+// Wellensalat, video export (1080x1920 MP4 for Instagram).
 //   1. WebCodecs (Chrome, Edge, newer Safari): frame by frame, faster than real time, exact.
 //      H.264 + AAC, muxed with mp4-muxer (loaded from the CDN only when needed).
 //   2. Fallback MediaRecorder: records the running preview in real time (MP4 where the browser
 //      can, otherwise WebM). The tab must stay in front while it records.
+import { t as tr } from './wf-i18n.js?v=ecd7f971e9';
+
 const MUXER_URL = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/+esm';
 // level 4.2: 1080x1920 at up to 60 fps
 const AVC = ['avc1.64002a', 'avc1.4d002a', 'avc1.42002a'];
@@ -55,7 +57,7 @@ export async function exportWebCodecs({ canvas, fps, clip, cfg, renderFrame, onP
   // the afterglow needs a few frames to settle on the first picture
   for (let k = 0; k < 12; k++) renderFrame(0, 1 / fps);
   for (let i = 0; i < frames; i++) {
-    if (signal?.aborted) throw new DOMException('abgebrochen', 'AbortError');
+    if (signal?.aborted) throw new DOMException('cancelled', 'AbortError');
     if (fail) throw fail;
     renderFrame(i / fps, 1 / fps);
     const vf = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps), duration: dur });
@@ -81,7 +83,7 @@ export function recorderMime() {
 // real-time recording; drawAt(t, dt) draws the frame for t
 export async function exportRecorder({ canvas, fps, clip, actx, drawAt, onProgress, signal }) {
   const mime = recorderMime();
-  if (!mime) throw new Error('Dieser Browser kann kein Video aufnehmen.');
+  if (!mime) throw new Error(tr('ex.norec'));
   await actx.resume();
   const dest = actx.createMediaStreamDestination(), src = actx.createBufferSource();
   src.buffer = clip; src.connect(dest); src.connect(actx.destination);
@@ -106,7 +108,7 @@ export async function exportRecorder({ canvas, fps, clip, actx, drawAt, onProgre
   try { src.stop(); } catch { /* already ended */ }
   await new Promise((r) => { rec.onstop = r; rec.stop(); });
   stream.getTracks().forEach((tr) => tr.stop());
-  if (signal?.aborted) throw new DOMException('abgebrochen', 'AbortError');
+  if (signal?.aborted) throw new DOMException('cancelled', 'AbortError');
   onProgress?.(1);
   return new Blob(chunks, { type: mime.split(';')[0] });
 }

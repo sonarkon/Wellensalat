@@ -1,11 +1,13 @@
-// Waveform tool, picture side: draws one 9:16 frame (logical 1080x1920) for a time t into a
+// Wellensalat, picture side: draws one 9:16 frame (logical 1080x1920) for a time t into a
 // low-res canvas, in white "roles" like ui.js. post.js then makes phosphor or Guide out of it.
 //   phosphor: 360x640 raster (the same pixel size as the stage FUI's 640x360 grid), pixel font
 //   guide:    720x1280, antialiased vector lines, monospaced vector font, theme colours
-import { matrixText, matrixWidth, setRes, bigText, bigWidth, isBig } from './font.js?v=cec359051e';
-import { THEMES, inkOf } from './theme.js?v=cec359051e';
+import { matrixText, matrixWidth, setRes, bigText, bigWidth, isBig } from './font.js?v=ecd7f971e9';
+import { THEMES, inkOf } from './theme.js?v=ecd7f971e9';
+import { t as tr, dec } from './wf-i18n.js?v=ecd7f971e9';
 
-export const VIEWS = [['scope', 'OSZI'], ['xy', 'X-Y'], ['spectrum', 'SPEKTRUM'], ['waterfall', 'WASSERFALL'], ['envelope', 'HÜLLKURVE']];
+// view keys; their names come from wf-i18n.js (view.<key>)
+export const VIEWS = [['scope'], ['xy'], ['spectrum'], ['waterfall'], ['envelope']];
 
 // Output formats and their layout (logical px = output px). All values are multiples of 3, so the
 // raster (1 device px = 3 logical px) stays on whole pixels. 9:16 keeps everything inside
@@ -24,7 +26,7 @@ const BAND_INKS = ['red', 'orange', 'base', 'label', 'cyan', 'blue', 'violet'];
 const fmt = (t) => {
   t = Math.max(0, t);
   const m = Math.floor(t / 60), s = t - m * 60;
-  return `${String(m).padStart(2, '0')}:${s.toFixed(1).padStart(4, '0').replace('.', ',')}`;
+  return `${String(m).padStart(2, '0')}:${dec(s.toFixed(1).padStart(4, '0'))}`;
 };
 
 export class Scene {
@@ -34,11 +36,23 @@ export class Scene {
     this.INK = '255,255,255';
     this.format = '9:16';
     this.bgImg = null; this.bgCache = null;
+    this.bgView = { zoom: 1, x: 0, y: 0 };   // zoom ≥ 1 over 'just covers'; x, y −1…1 within the overhang
   }
 
   setFormat(f) { this.format = FORMATS[f] ? f : '9:16'; this.resize(); }
   setTheme(name) { this.theme = THEMES[name] ? name : 'phosphor'; this.resize(); }
   setBackground(img) { this.bgImg = img; this.bgCache = null; }
+  setBgView(v) {
+    const z = Math.max(1, Math.min(4, +v.zoom || 1)), cl = (q) => Math.max(-1, Math.min(1, +q || 0));
+    this.bgView = { zoom: z, x: cl(v.x), y: cl(v.y) };
+  }
+  // how far the picture reaches over the frame, in output pixels (for dragging it)
+  bgOverhang() {
+    const img = this.bgImg;
+    if (!img) return { ox: 0, oy: 0 };
+    const s = Math.max(this.W / img.width, this.H / img.height) * this.bgView.zoom;
+    return { ox: img.width * s - this.W, oy: img.height * s - this.H };
+  }
 
   resize() {
     const th = THEMES[this.theme || 'phosphor'], F = FORMATS[this.format];
@@ -60,14 +74,15 @@ export class Scene {
   background() {
     const img = this.bgImg, cw = this.canvas.width, ch = this.canvas.height;
     if (!img) return null;
-    const key = `${cw}x${ch}|${this.smooth}`;
+    const V = this.bgView, key = `${cw}x${ch}|${this.smooth}|${V.zoom.toFixed(3)}|${V.x.toFixed(3)}|${V.y.toFixed(3)}`;
     if (this.bgCache?.key === key) return this.bgCache.cv;
     const cv = document.createElement('canvas');
     cv.width = cw; cv.height = ch;
     const g = cv.getContext('2d', { willReadFrequently: true });
-    const s = Math.max(cw / img.width, ch / img.height), iw = img.width * s, ih = img.height * s;
+    // always covers the frame: scale at least "just covers", position only within the overhang
+    const s = Math.max(cw / img.width, ch / img.height) * V.zoom, iw = img.width * s, ih = img.height * s;
     g.imageSmoothingQuality = 'high';
-    g.drawImage(img, (cw - iw) / 2, (ch - ih) / 2, iw, ih);
+    g.drawImage(img, -(iw - cw) * (V.x + 1) / 2, -(ih - ch) * (V.y + 1) / 2, iw, ih);
     if (!this.smooth) {
       const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], LV = [0, 77, 153, 255];
       const im = g.getImageData(0, 0, cw, ch), d = im.data;
@@ -162,26 +177,35 @@ export class Scene {
     this.header(t, o);
     if (bg && o.bgDim > 0) { c.fillStyle = `rgba(0,0,0,${o.bgDim})`; c.fillRect(L.bx, L.by, L.bw, L.bh); }
     const views = { scope: this.vScope, xy: this.vXY, spectrum: this.vSpectrum, waterfall: this.vWaterfall, envelope: this.vEnvelope };
-    const read = (views[o.view] || this.vScope).call(this, t, A, o, L.bx, L.by, L.bw, L.bh);
+    // smoothing: the signal views read a low-passed copy, the spectral views average over time
+    const As = A && o.smoothing > 0 && (o.view === 'scope' || o.view === 'xy') ? A.smoothed(o.smoothing) : A;
+    const read = (views[o.view] || this.vScope).call(this, t, As, o, L.bx, L.by, L.bw, L.bh);
     this.ink('label');
     this.frame(L.bx, L.by, L.bw, L.bh);
     if (o.readouts) {
       this.ink('text');
-      this.text(read, L.bx, L.read, 28, 'left', .85);
-      this.text(`${fmt(t)} / ${fmt(A ? A.dur : 0)}`, L.bx + L.bw, L.read, 28, 'right', .85);
+      // the timecode on the right; the readout on the left is cut to the space that is left
+      const tc = `${fmt(t)} / ${fmt(A ? A.dur : 0)}`, room = L.bw - this.textWidth(tc, 28) - 30;
+      let rd = read;
+      while (rd.length > 3 && this.textWidth(rd, 28) > room) rd = rd.slice(0, -1);
+      if (rd !== read) rd = rd.trimEnd();
+      this.text(rd, L.bx, L.read, 28, 'left', .85);
+      this.text(tc, L.bx + L.bw, L.read, 28, 'right', .85);
     }
     if (o.strip && A) this.strip(t, A, L.bx, L.strip, L.bw, L.sh);
     this.caption(t, o);
   }
 
+  // Kopfzeile and title. A line that does not fit runs through as a ticker (Laufschrift):
+  // after a short pause it scrolls to the left at a steady speed and comes round again.
   header(t, o) {
     const L = this.L;
-    if (o.label) { this.ink('label'); this.text(o.label, L.bx, L.label, 28, 'left', .85); }
-    let title = o.title || '';
+    if (o.label) { this.ink('label'); this.line(o.label, L.label, 28, t, .85); }
+    const title = o.title || '';
     if (!title) return;
     this.ink('title');
-    let px = 84;
-    while (px > 45 && this.textWidth(title, px) > L.bw) px -= 3;
+    const px = 84;
+    if (this.textWidth(title, px) > L.bw) { this.line(title, L.title, px, t, 1); return; }
     // typed in like a terminal line during the first seconds, with a block cursor
     const typed = o.typeTitle ? Math.min(title.length, Math.floor(Math.max(0, t - .3) * 14)) : title.length;
     const shown = title.slice(0, typed);
@@ -194,27 +218,50 @@ export class Scene {
     }
   }
 
-  // subtitles (typed in, two lines at a time) or, without a current cue, the fixed text
+  // one line of text at baseline y: as it is when it fits, otherwise a ticker clipped to the panel width
+  line(s, y, px, t, alpha) {
+    const L = this.L, c = this.c, w = this.textWidth(s, px);
+    if (w <= L.bw) { this.text(s, L.bx, y, px, 'left', alpha); return; }
+    const gap = px * 2.5, period = w + gap, speed = 110 + px;          // logical px per second
+    let off = Math.max(0, t - 1.2) * speed % period;
+    off = this.snap(off);                                              // whole raster pixels
+    c.save();
+    c.beginPath(); c.rect(L.bx, y - px * 1.1, L.bw, px * 1.5); c.clip();
+    this.text(s, L.bx - off, y, px, 'left', alpha);
+    this.text(s, L.bx - off + period, y, px, 'left', alpha);
+    // separator in the gap, like on a ticker tape
+    c.fillStyle = this.dim(alpha * .8);
+    const d = px * .18;
+    for (const x0 of [L.bx - off + w, L.bx - off + period + w]) this.rect(x0 + gap / 2 - d / 2, y - px * .37 - d / 2, d, d);
+    c.restore();
+  }
+
+  // subtitles (typed in, two lines at a time) or, without a current cue, the fixed text.
+  // Two voices: A flush left, B flush right (flipVoices swaps the sides), each on 78 % of the width (so the offset shows
+  // even with long lines); in the Guide look B also gets its own colour.
   caption(t, o) {
     const L = this.L;
     const cue = o.subtitles && o.cues ? o.cues.find((q) => t >= q.start && t < q.end) : null;
-    let lines, typed = Infinity;
+    let lines, typed = Infinity, right = false, w = L.bw;
     if (cue) {
-      const all = this.wrap(cue.text, SUB_PX, L.bw), pages = Math.ceil(all.length / 2), span = (cue.end - cue.start) / pages;
+      if (o.voices && cue.speaker) { w = Math.round(L.bw * .78); right = (cue.speaker === 'B') !== !!o.flipVoices; }
+      const all = this.wrap(cue.text, SUB_PX, w), pages = Math.ceil(all.length / 2), span = (cue.end - cue.start) / pages;
       const pg = Math.min(pages - 1, Math.floor((t - cue.start) / span));
       lines = all.slice(pg * 2, pg * 2 + 2);
       typed = Math.floor((t - cue.start - pg * span) * 45);
     } else if (o.text) lines = this.wrap(o.text, SUB_PX, L.bw).slice(0, 2);
     if (!lines || !lines.length) return;
-    this.ink('base');
+    this.ink(right && this.smooth ? 'cyan' : 'base');
     let left = typed, cx = L.bx, cy = L.sub;
     lines.forEach((ln, i) => {
       const y = L.sub + i * SUB_LH;
       if (left <= 0) return;
+      // each line sits where it will end up and is typed from its left end
+      const x0 = right ? L.bx + L.bw - this.textWidth(ln, SUB_PX) : L.bx;
       const s = ln.slice(0, left);
       left -= ln.length + 1;
-      this.text(s, L.bx, y, SUB_PX);
-      cx = L.bx + this.textWidth(s, SUB_PX); cy = y;
+      if (s) this.text(s, x0, y, SUB_PX);
+      cx = x0 + (s ? this.textWidth(s, SUB_PX) : 0); cy = y;
     });
     if (cue && left < 0) { // still typing: block cursor
       this.c.fillStyle = this.dim(1);
@@ -231,7 +278,7 @@ export class Scene {
     this.ink('base');
     const cy = y + h / 2, amp = h / 2 * .9 * o.gain * (A ? A.norm : 1);
     const lim = (v) => Math.max(y + 6, Math.min(y + h - 6, v));
-    if (!A) { c.fillStyle = this.dim(.9); this.rect(x, cy - 3, w, 6); return 'KEIN SIGNAL'; }
+    if (!A) { c.fillStyle = this.dim(.9); this.rect(x, cy - 3, w, 6); return tr('rd.nosignal'); }
     const t0 = A.trigger(t, win);
     if (this.smooth) {
       const n = 360;
@@ -256,7 +303,7 @@ export class Scene {
         pTop = top0; pBot = bot0;
       }
     }
-    return `CH1 L+R  ${String(o.timebase / 10).replace('.', ',')} MS/DIV`;
+    return `CH1 L+R  ${dec(o.timebase / 10)} MS/DIV`;
   }
 
   // X-Y: stereo (goniometer: mid up, side across) or the signal against itself delayed (loops)
@@ -264,15 +311,22 @@ export class Scene {
     const c = this.c, sq = Math.min(w, h);
     x += (w - sq) / 2; y += (h - sq) / 2; w = h = sq;
     this.graticule(x, y, w, h, 8, 8);
-    if (!A) return 'X-Y  KEIN SIGNAL';
+    if (!A) return `X-Y  ${tr('rd.nosignal')}`;
     const sr = A.sr, d = Math.max(1, Math.round(o.xyDelay / 1000 * sr)), stereo = o.xyMode === 'stereo';
     const s = w / 2 * .8 * o.gain * A.norm, cx = x + w / 2, cy = y + h / 2;
+    // the figure turns about the vertical axis (like dragging the Augmentor's scope sideways);
+    // the third axis is the signal one more delay back. The angle depends on t only, so the
+    // export matches the preview. o.xySpin in degrees per second, o.xyTilt tips it forward.
+    const yaw = (o.xySpin || 0) * t * Math.PI / 180, cY = Math.cos(yaw), sY = Math.sin(yaw);
+    const tilt = (o.xyTilt || 0) * Math.PI / 180, cT = Math.cos(tilt), sT = Math.sin(tilt);
     const P = (i) => {
-      i = Math.max(d, Math.min(A.n - 1, i));
-      let a, b;
-      if (stereo) { a = (A.R[i] - A.L[i]) * .7071; b = (A.L[i] + A.R[i]) * .7071; }
-      else { a = A.M[i]; b = A.M[i - d]; }
-      return [Math.max(x + 8, Math.min(x + w - 8, cx + a * s)), Math.max(y + 8, Math.min(y + h - 8, cy - b * s))];
+      i = Math.max(2 * d, Math.min(A.n - 1, i));
+      let a, b, z;
+      if (stereo) { a = (A.R[i] - A.L[i]) * .7071; b = (A.L[i] + A.R[i]) * .7071; z = A.M[i - d]; }
+      else { a = A.M[i]; b = A.M[i - d]; z = A.M[i - 2 * d]; }
+      const xr = a * cY + z * sY, zr = -a * sY + z * cY;
+      const yr = b * cT - zr * sT;
+      return [Math.max(x + 8, Math.min(x + w - 8, cx + xr * s)), Math.max(y + 8, Math.min(y + h - 8, cy - yr * s))];
     };
     const iNow = A.idx(t);
     // stored cloud: sparse points of the last 1.2 s, fading with age (graded colours in the Guide)
@@ -299,7 +353,8 @@ export class Scene {
     const [hx, hy] = P(iNow);
     c.fillStyle = this.dim(1);
     if (this.smooth) { c.beginPath(); c.arc(hx, hy, 9, 0, 6.283); c.fill(); } else this.rect(hx - 6, hy - 6, 12, 12);
-    return stereo ? 'X-Y  L/R  M/S' : `X-Y  CH1 / CH1 −${String(o.xyDelay).replace('.', ',')} MS`;
+    const spin = o.xySpin ? `  ${tr('rd.spin')} ${o.xySpin > 0 ? '+' : ''}${Math.round(o.xySpin)}°/S` : '';
+    return (stereo ? 'X-Y  L/R  M/S' : `X-Y  CH1 / −${dec(o.xyDelay)} MS`) + spin;
   }
 
   // spectrum: columns on a log frequency axis, peak hold above
@@ -308,11 +363,11 @@ export class Scene {
     this.ink(this.smooth ? 'blue' : 'base');
     c.fillStyle = this.dim(.3);
     for (let j = 1; j < 8; j++) this.rect(x, y + j * h / 8, w, 3);
-    if (!A) return 'FFT  KEIN SIGNAL';
+    if (!A) return `FFT  ${tr('rd.nosignal')}`;
     const nb = this.smooth ? 64 : 48, bw = w / nb, top = y + 24, hh = h - 30;
-    const v = A.bars(t, nb), pk = new Float32Array(v);
+    const v = A.barsSmooth(t, nb, o.smoothing), pk = new Float32Array(v);
     for (let k = 1; k <= 12; k++) {
-      const pv = A.bars(t - k / 24, nb), f = 1 - k * .035;
+      const pv = A.barsSmooth(t - k / 24, nb, o.smoothing), f = 1 - k * .035;
       for (let b = 0; b < nb; b++) pk[b] = Math.max(pk[b], pv[b] * f);
     }
     const lift = (u) => Math.min(1, Math.max(0, (u - .12) / .88) * o.gain);
@@ -332,7 +387,7 @@ export class Scene {
   // waterfall: spectra as ridge lines receding in depth, the newest at the front
   vWaterfall(t, A, o, x, y, w, h) {
     const c = this.c;
-    if (!A) return 'WASSERFALL  KEIN SIGNAL';
+    if (!A) return `${tr('view.waterfall')}  ${tr('rd.nosignal')}`;
     const N = 34, dt = 1 / 20, k0 = Math.floor(t / dt), frac = t / dt - k0, nb = this.smooth ? 120 : 90;
     c.save();
     c.beginPath(); c.rect(x + 3, y + 3, w - 6, h - 6); c.clip();
@@ -343,7 +398,7 @@ export class Scene {
       if (depth > 1) continue;
       const sc = 1 - .42 * depth, lw = w * .92 * sc, lx = x + (w - lw) / 2;
       const base = y + h - h * .08 - depth * h * .56, amp = h * .32 * sc * o.gain;
-      const v = A.bars(tt, nb);
+      const v = A.barsSmooth(tt, nb, o.smoothing);
       const pts = [];
       for (let j = 0; j < nb; j++) pts.push([lx + j / (nb - 1) * lw, base - Math.max(0, (v[j] - .15) / .85) * amp]);
       // hide what lies behind (filled black down to the base line)
@@ -359,7 +414,7 @@ export class Scene {
       c.stroke();
     }
     c.restore();
-    return 'WASSERFALL  20 Z/S';
+    return tr('rd.waterfall');
   }
 
   // envelope: ±3 s around now, the past bright, the future dim, a fixed playhead in the middle
@@ -368,7 +423,7 @@ export class Scene {
     this.ink(this.smooth ? 'blue' : 'base');
     c.fillStyle = this.dim(.3);
     for (let s = -span + 1; s < span; s++) this.rect(cx + s / span * w / 2 - 1, y + 3, 3, h - 6);
-    if (!A) { this.ink('base'); c.fillStyle = this.dim(.9); this.rect(x, cy - 3, w, 6); return 'HÜLLKURVE  KEIN SIGNAL'; }
+    if (!A) { this.ink('base'); c.fillStyle = this.dim(.9); this.rect(x, cy - 3, w, 6); return `${tr('view.envelope')}  ${tr('rd.nosignal')}`; }
     const cols = this.smooth ? 200 : Math.round(w * this.res), cw = w / cols, hh = (h / 2 - 24) * o.gain * A.norm;
     for (let i = 0; i < cols; i++) {
       const ta = t + (i / cols * 2 - 1) * span, tb = t + ((i + 1) / cols * 2 - 1) * span;
@@ -376,13 +431,13 @@ export class Scene {
       const past = ta < t;
       this.ink(this.smooth ? (past ? 'base' : 'violet') : 'base');
       c.fillStyle = this.dim(past ? .95 : .35);
-      const v = Math.max(3, Math.min(h / 2 - 12, A.envMax(ta, tb) * hh));
+      const v = Math.max(3, Math.min(h / 2 - 12, A.envSmooth(ta, tb, o.smoothing) * hh));
       if (this.smooth) { c.beginPath(); c.roundRect(x + i * cw + .5, cy - v, cw - 1, v * 2, 2); c.fill(); } else this.rect(x + i * cw, cy - v, cw, v * 2);
     }
     this.ink('label');
     c.fillStyle = this.dim(1);
     this.rect(cx - 3, y + 3, 6, h - 6);
-    return 'HÜLLKURVE  ±3 S';
+    return tr('rd.envelope');
   }
 
   // the whole clip as a thin strip under the panel, with the position

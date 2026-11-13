@@ -1,4 +1,4 @@
-// Waveform tool, audio side: decode, cut, fade, level, and the analysis the scene reads.
+// Wellensalat, audio side: decode, cut, fade, level, and the analysis the scene reads.
 // Everything the picture shows is computed from the processed clip at a time t, without state,
 // so the live preview and the frame-by-frame export show exactly the same thing.
 
@@ -33,31 +33,72 @@ export function demoBuffer(sr = 48000) {
   return b;
 }
 
-// cut [start, end], level (normalize to −1 dBFS and/or gain), fade in / out. Always two channels.
+// Several cut ranges ("Schnipsel") are joined in list order. Where a fade-out meets the next
+// fade-in, the two overlap by the shorter of both fades and cross-fade into each other.
+// With a pause (gap, seconds) > 0 the ranges do not overlap: silence lies between them and the
+// fades go out into it and come back from it.
+// layoutSegs gives each range its place `at` in the joined clip; total = length of the clip.
+export function layoutSegs(segs, gap = 0) {
+  const out = [];
+  segs.forEach((s, i) => {
+    const len = Math.max(.01, s.end - s.start);
+    let at = 0, xIn = 0;
+    if (i) {
+      const p = out[i - 1];
+      if (gap > 0) at = p.at + p.len + gap;
+      else {
+        xIn = Math.max(0, Math.min(p.fadeOut, s.fadeIn, p.len, len));
+        at = p.at + p.len - xIn;
+      }
+    }
+    out.push({ ...s, i, len, at, xIn });
+  });
+  const last = out[out.length - 1];
+  return { segs: out, total: last ? last.at + last.len : 0 };
+}
+// clip time → source time (inside a cross-fade the later range counts)
+export function clipToSrc(L, t) {
+  let q = L.segs[0];
+  for (const s of L.segs) if (s.at <= t) q = s;
+  return q ? Math.min(q.end, q.start + Math.max(0, t - q.at)) : t;
+}
+// source time → clip time, or null when that moment is not in the clip
+export function srcToClip(L, ts) {
+  for (const s of L.segs) if (ts >= s.start && ts <= s.end) return s.at + ts - s.start;
+  return null;
+}
+
+// join the ranges with their fades, then level (normalize the result to −1 dBFS and/or gain).
+// p: { segs: [{ start, end, fadeIn, fadeOut }], gap, curve, normalize, gainDb }. Always two channels.
 export function processClip(src, p) {
   const sr = src.sampleRate, chs = src.numberOfChannels;
-  const i0 = Math.max(0, Math.min(src.length - 1, Math.round(p.start * sr)));
-  const i1 = Math.max(i0 + 1, Math.min(src.length, Math.round(p.end * sr)));
-  const n = i1 - i0;
+  const L = layoutSegs(p.segs, p.gap || 0);
+  const n = Math.max(1, Math.round(L.total * sr));
   const ins = Array.from({ length: chs }, (_, c) => src.getChannelData(c));
+  const shape = CURVES[p.curve] || CURVES.soft;
+  const out = new AudioBuffer({ length: n, numberOfChannels: 2, sampleRate: sr });
+  const d = [out.getChannelData(0), out.getChannelData(1)];
+  for (const sg of L.segs) {
+    const i0 = Math.max(0, Math.round(sg.start * sr)), o0 = Math.round(sg.at * sr);
+    const len = Math.min(Math.round(sg.len * sr), src.length - i0, n - o0);
+    const fi = Math.min(len, Math.round(sg.fadeIn * sr)), fo = Math.min(len, Math.round(sg.fadeOut * sr));
+    for (let c = 0; c < 2; c++) {
+      const s = ins[Math.min(c, chs - 1)], dc = d[c];
+      for (let k = 0; k < len; k++) {
+        let e = 1;
+        if (k < fi) e *= shape(k / fi);
+        if (len - k < fo) e *= shape((len - k) / fo);
+        dc[o0 + k] += s[i0 + k] * e;
+      }
+    }
+  }
   let g = 10 ** ((p.gainDb || 0) / 20);
   if (p.normalize) {
     let pk = 0;
-    for (const s of ins) for (let i = i0; i < i1; i++) { const v = Math.abs(s[i]); if (v > pk) pk = v; }
+    for (const dc of d) for (let i = 0; i < n; i++) { const v = Math.abs(dc[i]); if (v > pk) pk = v; }
     if (pk > 1e-6) g *= 10 ** (-1 / 20) / pk;
   }
-  const fi = Math.min(n, Math.round(p.fadeIn * sr)), fo = Math.min(n, Math.round(p.fadeOut * sr));
-  const shape = CURVES[p.curve] || CURVES.soft;
-  const out = new AudioBuffer({ length: n, numberOfChannels: 2, sampleRate: sr });
-  for (let c = 0; c < 2; c++) {
-    const s = ins[Math.min(c, chs - 1)], d = out.getChannelData(c);
-    for (let k = 0; k < n; k++) {
-      let e = g;
-      if (k < fi) e *= shape(k / fi);
-      if (n - k < fo) e *= shape((n - k) / fo);
-      d[k] = s[i0 + k] * e;
-    }
-  }
+  if (g !== 1) for (const dc of d) for (let i = 0; i < n; i++) dc[i] *= g;
   return out;
 }
 
@@ -176,6 +217,54 @@ export class Analysis {
     if (this.spec.size > 3000) this.spec.clear();
     this.spec.set(key, s);
     return s;
+  }
+
+  // Smoothing (0..1) for the signal views: a zero-phase low-pass (forward and backward pass) on
+  // M, L and R. Returns a view of this analysis with the smoothed arrays (cached for one level).
+  smoothed(k) {
+    const q = Math.round(k * 20) / 20;
+    if (q <= 0) return this;
+    if (this.sm?.q === q) return this.sm.view;
+    const fc = 12000 * (1 - q) ** 2.4 + 50, a = 1 - Math.exp(-2 * Math.PI * fc / this.sr);
+    const filt = (src) => {
+      const d = new Float32Array(src);
+      let y = d[0];
+      for (let i = 0; i < d.length; i++) { y += a * (d[i] - y); d[i] = y; }
+      y = d[d.length - 1];
+      for (let i = d.length - 1; i >= 0; i--) { y += a * (d[i] - y); d[i] = y; }
+      return d;
+    };
+    const view = Object.create(this);
+    view.M = filt(this.M);
+    view.L = filt(this.L); view.R = this.R === this.L ? view.L : filt(this.R);
+    this.sm = { q, view };
+    return view;
+  }
+
+  // spectrum smoothed over time (0..1): an exponentially weighted mean of the last frames
+  barsSmooth(t, nb, k) {
+    if (!(k > 0)) return this.bars(t, nb);
+    const tau = .04 + k * .5, out = new Float32Array(nb);
+    let ws = 0;
+    for (let j = 0; j < 10; j++) {
+      const dt = j / 30, wgt = Math.exp(-dt / tau);
+      if (wgt < .03) break;
+      const v = this.bars(t - dt, nb);
+      for (let b = 0; b < nb; b++) out[b] += v[b] * wgt;
+      ws += wgt;
+    }
+    for (let b = 0; b < nb; b++) out[b] /= ws;
+    return out;
+  }
+
+  // envelope smoothed: the mean of the 5 ms peaks over a window widened by up to ±0.25 s
+  envSmooth(t0, t1, k) {
+    if (!(k > 0)) return this.envMax(t0, t1);
+    const pad = k * .25;
+    const a = Math.max(0, Math.floor((t0 - pad) * 200)), b = Math.min(this.env.length, Math.max(a + 1, Math.ceil((t1 + pad) * 200)));
+    let s = 0;
+    for (let i = a; i < b; i++) s += this.env[i];
+    return (b > a ? s / (b - a) : 0) * (1 + k * .6);
   }
 
   // spectrum on a logarithmic frequency axis, nb values

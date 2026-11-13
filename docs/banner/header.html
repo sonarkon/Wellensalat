@@ -1,21 +1,6 @@
-<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"><style>
-html, body { width: 1280px; height: 320px; }
-.left { position: absolute; left: 64px; top: 80px; width: 440px; }
-.frames { right: 40px; top: 12px; }
-.frames img { height: 296px; }
-/* the frames fade into the background towards the text */
-.frames { -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,.25), #000 38%); }
+<!doctype html><html><head><meta charset="utf-8"><style>
+* { margin: 0; padding: 0; } html, body { width: 2560px; height: 640px; background: #000; overflow: hidden; } img { display: block; }
 </style></head><body>
-<div class="left">
-  <div class="over">AUDIO → WAVEFORM VIDEO</div>
-  <h1>Wellen<em>salat</em></h1>
-  <p class="tag">Waveform videos for Reels, Shorts and YouTube – in your browser.</p>
-</div>
-<div class="frames">
-  <img data-frame='{"theme":"phosphor","stage":"WACH","view":"scope","t":4.2}'>
-  <img data-frame='{"theme":"guide","view":"waterfall","t":5.4}'>
-  <img data-frame='{"theme":"phosphor","stage":"REM","view":"xy","xySpin":40,"xyTilt":20,"t":6.3}'>
-  <img data-frame='{"theme":"guide","view":"spectrum","t":7.4}'>
-</div>
-<script type="module" src="frames.js"></script>
+<canvas id="banner" data-layout="header"></canvas>
+<script type="module" src="phosphor.js"></script>
 </body></html>

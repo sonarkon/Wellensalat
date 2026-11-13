@@ -2,9 +2,9 @@
 // low-res canvas, in white "roles" like ui.js. post.js then makes phosphor or Guide out of it.
 //   phosphor: 360x640 raster (the same pixel size as the stage FUI's 640x360 grid), pixel font
 //   guide:    720x1280, antialiased vector lines, monospaced vector font, theme colours
-import { matrixText, matrixWidth, setRes, bigText, bigWidth, isBig } from './font.js?v=ecd7f971e9';
-import { THEMES, inkOf } from './theme.js?v=ecd7f971e9';
-import { t as tr, dec } from './wf-i18n.js?v=ecd7f971e9';
+import { matrixText, matrixWidth, setRes, bigText, bigWidth, isBig } from './font.js?v=dbb9293556';
+import { THEMES, inkOf } from './theme.js?v=dbb9293556';
+import { t as tr, dec } from './wf-i18n.js?v=dbb9293556';
 
 // view keys; their names come from wf-i18n.js (view.<key>)
 export const VIEWS = [['scope'], ['xy'], ['spectrum'], ['waterfall'], ['envelope']];
@@ -388,7 +388,7 @@ export class Scene {
   vWaterfall(t, A, o, x, y, w, h) {
     const c = this.c;
     if (!A) return `${tr('view.waterfall')}  ${tr('rd.nosignal')}`;
-    const N = 34, dt = 1 / 20, k0 = Math.floor(t / dt), frac = t / dt - k0, nb = this.smooth ? 120 : 90;
+    const N = o.wfLines || 34, dt = 1 / 20 * 34 / N, k0 = Math.floor(t / dt), frac = t / dt - k0, nb = this.smooth ? 120 : 90;
     c.save();
     c.beginPath(); c.rect(x + 3, y + 3, w - 6, h - 6); c.clip();
     for (let i = N; i >= 0; i--) {

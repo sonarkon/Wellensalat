@@ -1,14 +1,14 @@
 // Wellensalat: audio → waveform video (Reels, Shorts, YouTube). Import, cut, fade, pick a view and a
 // look (phosphor raster or Hitchhiker vector – the Augmentor's themes 'phosphor' and 'guide'),
 // add text and subtitles, export an MP4. English by default, German as an option (wf-i18n.js).
-import { Post } from './post.js?v=642939c822';
-import { THEMES } from './theme.js?v=642939c822';
-import { Scene, VIEWS, FORMATS } from './wf-scene.js?v=642939c822';
-import { Analysis, processClip, demoBuffer, decodeFile, columnPeaks, CURVES, layoutSegs, clipToSrc, srcToClip } from './wf-audio.js?v=642939c822';
-import { toSRT, parseSRT, chunksToCues, to16k, transcribe, diarize, assignSpeakers, speakersOf } from './wf-subs.js?v=642939c822';
-import { webCodecsConfig, exportWebCodecs, exportRecorder, recorderMime } from './wf-export.js?v=642939c822';
-import { t as tr, setLang, getLang, dec } from './wf-i18n.js?v=642939c822';
-import { APP } from './wf-config.js?v=642939c822';
+import { Post } from './post.js?v=70d9a65bda';
+import { THEMES } from './theme.js?v=70d9a65bda';
+import { Scene, VIEWS, FORMATS } from './wf-scene.js?v=70d9a65bda';
+import { Analysis, processClip, demoBuffer, decodeFile, columnPeaks, CURVES, layoutSegs, clipToSrc, srcToClip } from './wf-audio.js?v=70d9a65bda';
+import { toSRT, parseSRT, chunksToCues, to16k, transcribe, diarize, assignSpeakers, speakersOf } from './wf-subs.js?v=70d9a65bda';
+import { webCodecsConfig, exportWebCodecs, exportRecorder, recorderMime } from './wf-export.js?v=70d9a65bda';
+import { t as tr, setLang, getLang, dec } from './wf-i18n.js?v=70d9a65bda';
+import { APP } from './wf-config.js?v=70d9a65bda';
 
 const $ = (id) => document.getElementById(id);
 $('noapp')?.remove();   // the script runs
@@ -36,6 +36,8 @@ const saveS = () => { try { localStorage.setItem('wellensalat.settings', JSON.st
 if (S.lang !== 'de') S.lang = 'en';
 setLang(S.lang);
 if (!THEMES[S.theme]) S.theme = 'phosphor';
+// the button (or other element) carrying data-<key> that was clicked, also when its inner text was hit
+const hit = (e, key) => e.target.closest?.(`[data-${key}]`)?.dataset[key];
 if (!S.fx?.phosphor || !S.fx?.guide) S.fx = { phosphor: { glow: .15, persist: .6 }, guide: { glow: .4, persist: .5 } };
 if (!FORMATS[S.format]) S.format = '9:16';
 
@@ -206,7 +208,7 @@ $('curve').addEventListener('change', () => { E.curve = CURVES[$('curve').value]
 $('normalize').addEventListener('change', () => { E.normalize = $('normalize').checked; rebuild(); });
 $('gainDb').addEventListener('input', () => { E.gainDb = parseFloat($('gainDb').value); showEdit(); rebuild(); });
 // ranges: select, add (+), move, remove
-$('segs').addEventListener('click', (e) => { const i = e.target.dataset?.seg; if (i === undefined) return; E.active = +i; showEdit(); seekToActive(); });
+$('segs').addEventListener('click', (e) => { const i = hit(e, 'seg'); if (i === undefined) return; E.active = +i; showEdit(); seekToActive(); });
 $('segAdd').addEventListener('click', () => {
   if (!E.src) return;
   const dur = E.src.duration, g = seg();
@@ -432,8 +434,8 @@ function setS(k, v) {
   }
 }
 document.querySelectorAll('button[data-look]').forEach((b) => b.addEventListener('click', () => setS('theme', b.dataset.look)));
-$('tabs').addEventListener('click', (e) => { const t = e.target.dataset?.tab; if (t) setS('tab', t); });
-$('views').addEventListener('click', (e) => { const v = e.target.dataset?.view; if (v) setS('view', v); });
+$('tabs').addEventListener('click', (e) => { const t = hit(e, 'tab'); if (t) setS('tab', t); });
+$('views').addEventListener('click', (e) => { const v = hit(e, 'view'); if (v) setS('view', v); });
 for (const k of ['gain', 'timebase', 'xyDelay', 'xySpin', 'xyTilt', 'smoothing']) $(k).addEventListener('input', () => setS(k, parseFloat($(k).value)));
 $('xyMode').addEventListener('change', () => setS('xyMode', $('xyMode').value));
 // a phosphor stage sets colour, glow and afterglow; the two sliders then fine-tune
@@ -447,7 +449,7 @@ for (const k of ['label', 'title']) $(k).addEventListener('input', () => { S[k] 
 for (const k of ['typeTitle', 'readouts', 'strip', 'safe']) $(k).addEventListener('change', () => setS(k, $(k).checked));
 $('fps').addEventListener('change', () => setS('fps', parseInt($('fps').value, 10)));
 $('formats').innerHTML = Object.entries(FORMATS).map(([k, f]) => `<button data-format="${k}" title="${f.hint}">${f.name}</button>`).join('');
-$('formats').addEventListener('click', (e) => { const f = e.target.dataset?.format; if (f) setS('format', f); });
+$('formats').addEventListener('click', (e) => { const f = hit(e, 'format'); if (f) setS('format', f); });
 for (const k of ['bgOpacity', 'bgDim', 'bgZoom', 'bgX', 'bgY']) $(k).addEventListener('input', () => setS(k, parseFloat($(k).value)));
 $('bgReset').addEventListener('click', () => { S.bgZoom = 1; S.bgX = 0; S.bgY = 0; saveS(); showS(); });
 // on the preview: drag moves the picture, the wheel scales it (only with a background picture)
@@ -539,7 +541,7 @@ $('cues').addEventListener('change', (e) => {
   showCues();
 });
 $('cues').addEventListener('click', (e) => {
-  const row = e.target.closest('.cue'), act = e.target.dataset.act;
+  const row = e.target.closest('.cue'), act = hit(e, 'act');
   if (row && act) {
     const i = +row.dataset.i;
     if (act === 'del') cues.splice(i, 1);
@@ -783,7 +785,7 @@ function applyLang() {
   if (E.src) showEdit();
   if (!scene.bgImg) $('bgInfo').textContent = tr('bg.none');
 }
-$('langs').addEventListener('click', (e) => { const l = e.target.dataset?.lang; if (l && l !== S.lang) { S.lang = l; saveS(); applyLang(); } });
+$('langs').addEventListener('click', (e) => { const l = hit(e, 'lang'); if (l && l !== S.lang) { S.lang = l; saveS(); applyLang(); } });
 $('version').textContent = `${APP.name} v${APP.version}${APP.build !== 'dev' ? ` · ${APP.build.slice(0, 7)}` : ''}`;
 $('repo').href = APP.repo;
 if (APP.kofi) { $('kofi').href = APP.kofi; $('kofi').hidden = false; }

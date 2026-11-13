@@ -3,7 +3,7 @@
 //      H.264 + AAC, muxed with mp4-muxer (loaded from the CDN only when needed).
 //   2. Fallback MediaRecorder: records the running preview in real time (MP4 where the browser
 //      can, otherwise WebM). The tab must stay in front while it records.
-import { t as tr } from './wf-i18n.js?v=642939c822';
+import { t as tr } from './wf-i18n.js?v=70d9a65bda';
 
 const MUXER_URL = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/+esm';
 // level 4.2: 1080x1920 at up to 60 fps

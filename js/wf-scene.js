@@ -2,9 +2,9 @@
 // low-res canvas, in white "roles" like ui.js. post.js then makes phosphor or Guide out of it.
 //   phosphor: 360x640 raster (the same pixel size as the stage FUI's 640x360 grid), pixel font
 //   guide:    720x1280, antialiased vector lines, monospaced vector font, theme colours
-import { matrixText, matrixWidth, setRes, bigText, bigWidth, isBig } from './font.js?v=642939c822';
-import { THEMES, inkOf } from './theme.js?v=642939c822';
-import { t as tr, dec } from './wf-i18n.js?v=642939c822';
+import { matrixText, matrixWidth, setRes, bigText, bigWidth, isBig } from './font.js?v=70d9a65bda';
+import { THEMES, inkOf } from './theme.js?v=70d9a65bda';
+import { t as tr, dec } from './wf-i18n.js?v=70d9a65bda';
 
 // view keys; their names come from wf-i18n.js (view.<key>)
 export const VIEWS = [['scope'], ['xy'], ['spectrum'], ['waterfall'], ['envelope']];

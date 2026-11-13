@@ -1,14 +1,14 @@
 // Wellensalat: audio → waveform video (Reels, Shorts, YouTube). Import, cut, fade, pick a view and a
 // look (phosphor raster or Hitchhiker vector – the Augmentor's themes 'phosphor' and 'guide'),
 // add text and subtitles, export an MP4. English by default, German as an option (wf-i18n.js).
-import { Post } from './post.js?v=f0b985fb23';
-import { THEMES } from './theme.js?v=f0b985fb23';
-import { Scene, VIEWS, FORMATS } from './wf-scene.js?v=f0b985fb23';
-import { Analysis, processClip, demoBuffer, decodeFile, columnPeaks, CURVES, layoutSegs, clipToSrc, srcToClip } from './wf-audio.js?v=f0b985fb23';
-import { toSRT, parseSRT, chunksToCues, to16k, transcribe, diarize, assignSpeakers, speakersOf } from './wf-subs.js?v=f0b985fb23';
-import { webCodecsConfig, exportWebCodecs, exportRecorder, recorderMime } from './wf-export.js?v=f0b985fb23';
-import { t as tr, setLang, getLang, dec } from './wf-i18n.js?v=f0b985fb23';
-import { APP } from './wf-config.js?v=f0b985fb23';
+import { Post } from './post.js?v=7d491179de';
+import { THEMES } from './theme.js?v=7d491179de';
+import { Scene, VIEWS, FORMATS } from './wf-scene.js?v=7d491179de';
+import { Analysis, processClip, demoBuffer, decodeFile, columnPeaks, CURVES, layoutSegs, clipToSrc, srcToClip } from './wf-audio.js?v=7d491179de';
+import { toSRT, parseSRT, chunksToCues, to16k, transcribe, diarize, assignSpeakers, speakersOf } from './wf-subs.js?v=7d491179de';
+import { webCodecsConfig, exportWebCodecs, exportRecorder, recorderMime } from './wf-export.js?v=7d491179de';
+import { t as tr, setLang, getLang, dec } from './wf-i18n.js?v=7d491179de';
+import { APP } from './wf-config.js?v=7d491179de';
 
 const $ = (id) => document.getElementById(id);
 $('noapp')?.remove();   // the script runs
@@ -119,6 +119,10 @@ const updateButtons = () => { $('play').textContent = player.playing ? tr('stop'
 
 // --- the processed clip ---------------------------------------------------------------
 let rebuildTimer = 0;
+// The playhead is kept at its place in the source file while ranges are edited: anchorSrc is
+// updated every frame, but not while a range is dragged or an edit waits for the rebuild
+// (then the layout has already changed and clip time would point somewhere else).
+let anchorSrc = 0, editDirty = false;
 function rebuild(now = false) {
   clearTimeout(rebuildTimer);
   if (!now) { rebuildTimer = setTimeout(() => rebuild(true), 80); return; }
@@ -127,7 +131,9 @@ function rebuild(now = false) {
   player.stop();
   clip = processClip(E.src, E);
   ana = new Analysis(clip);
-  player.pos = Math.min(pos, clip.duration);
+  const at = toClip(anchorSrc);
+  player.pos = Math.min(at ?? pos, clip.duration);
+  editDirty = false;
   if (was) player.play();
   showEdit();
 }
@@ -137,8 +143,8 @@ function loadBuffer(buf, name, isDemo = false) {
   E.src = buf; E.name = name; E.isDemo = isDemo;
   E.segs = [{ start: 0, end: buf.duration, fadeIn: Math.min(.3, buf.duration / 4), fadeOut: Math.min(1.5, buf.duration / 4) }];
   E.active = 0;
-  player.pos = 0;
-  ov.peaks = null;
+  player.pos = 0; anchorSrc = 0;
+  ov.peaks = null; setView(0, buf.duration);
   showFileInfo();
   rebuild(true);
 }
@@ -190,6 +196,7 @@ function showEdit() {
   if (typeof showCues === 'function') showCues();
 }
 function setEdit(k, v) {
+  editDirty = true;
   const dur = E.src.duration, g = seg();
   if (k === 'start') g.start = Math.max(0, Math.min(v, g.end - .1));
   else if (k === 'end') g.end = Math.min(dur, Math.max(v, g.start + .1));
@@ -238,15 +245,36 @@ $('segDel').addEventListener('click', () => {
 });
 
 // --- overview: the whole file, the cut, fades, position -------------------------------------
-const ov = { el: $('ov'), peaks: null, w: 0, drag: null };
-const ovX = (t) => t / E.src.duration * ov.w;
-const ovT = (x) => Math.max(0, Math.min(E.src.duration, x / ov.w * E.src.duration));
+// v0 … v1: the part of the file the timeline shows (zoom); peaks are made for that part
+const ov = { el: $('ov'), peaks: null, peaksKey: '', w: 0, drag: null, v0: 0, v1: 1 };
+const ovX = (t) => (t - ov.v0) / (ov.v1 - ov.v0) * ov.w;
+const ovT = (x) => Math.max(0, Math.min(E.src.duration, ov.v0 + x / ov.w * (ov.v1 - ov.v0)));
+function setView(v0, v1) {
+  const dur = E.src.duration, span = Math.max(Math.min(.5, dur), Math.min(dur, v1 - v0));
+  v0 = Math.max(0, Math.min(dur - span, v0));
+  ov.v0 = v0; ov.v1 = v0 + span;
+  $('zoomV').textContent = span < dur - 1e-6 ? `${dec((dur / span).toFixed(dur / span < 10 ? 1 : 0))}×` : '';
+}
+const zoomAt = (k, t) => { const a = ov.v0, b = ov.v1; setView(t - (t - a) / k, t + (b - t) / k); };
+$('zoomIn').addEventListener('click', () => zoomAt(2, ov.drag ? anchorSrc : toSrc(player.time())));
+$('zoomOut').addEventListener('click', () => zoomAt(.5, (ov.v0 + ov.v1) / 2));
+$('zoomFit').addEventListener('click', () => setView(0, E.src.duration));
+ov.el.addEventListener('wheel', (e) => {
+  if (!E.src) return;
+  e.preventDefault();
+  const r = ov.el.getBoundingClientRect(), span = ov.v1 - ov.v0;
+  if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) { // pan
+    const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / ov.w * span;
+    setView(ov.v0 + d, ov.v1 + d);
+  } else zoomAt(Math.exp(-e.deltaY * .0025), ovT(e.clientX - r.left));
+}, { passive: false });
 function drawOverview() {
   const el = ov.el, dpr = window.devicePixelRatio || 1, w = el.clientWidth, h = el.clientHeight;
   if (!w || !E.src) return;
   if (el.width !== Math.round(w * dpr) || el.height !== Math.round(h * dpr)) { el.width = Math.round(w * dpr); el.height = Math.round(h * dpr); ov.peaks = null; }
   ov.w = w;
-  if (!ov.peaks) ov.peaks = columnPeaks(E.src, Math.round(w));
+  const key = `${Math.round(w)}|${ov.v0.toFixed(4)}|${ov.v1.toFixed(4)}`;
+  if (!ov.peaks || ov.peaksKey !== key) { ov.peaks = columnPeaks(E.src, Math.round(w), ov.v0, ov.v1); ov.peaksKey = key; }
   const c = el.getContext('2d'), ink = getComputedStyle(document.body).getPropertyValue('--ink').trim();
   const col = (a) => `rgba(${ink},${a})`;
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -293,7 +321,7 @@ function drawOverview() {
   });
   // position
   if (clip) {
-    const px = ovX(toSrc(player.time()));
+    const px = ovX(ov.drag || editDirty ? anchorSrc : toSrc(player.time()));
     c.fillStyle = `rgb(${getComputedStyle(document.body).getPropertyValue('--hi').trim()})`;
     c.fillRect(px - 1, top - 2, 2, hh + 4);
   }
@@ -312,15 +340,33 @@ ov.el.addEventListener('pointerdown', (e) => {
     const i = E.segs.findIndex((q) => near(q.start) || near(q.end));
     if (i >= 0) { E.active = i; mode = near(E.segs[i].start) ? 'start' : 'end'; showEdit(); }
   }
-  ov.drag = { mode, x0: x, t0: ovT(x), moved: false };
+  const t0 = ovT(x);
+  // inside a range (not on a bracket): a click jumps there, dragging moves the whole range
+  let inside = -1;
+  if (mode === 'new') inside = E.segs.findIndex((q) => t0 >= q.start && t0 <= q.end);
+  if (inside >= 0) mode = 'move';
+  ov.drag = { mode, x0: x, t0, moved: false, seg: inside, s0: inside >= 0 ? E.segs[inside].start : 0 };
   ov.el.setPointerCapture(e.pointerId);
 });
 ov.el.addEventListener('pointermove', (e) => {
   const d = ov.drag;
   const r = ov.el.getBoundingClientRect(), x = e.clientX - r.left, t = ovT(x);
-  if (!d) { ov.el.style.cursor = E.src && E.segs.some((q) => Math.abs(x - ovX(q.start)) < 9 || Math.abs(x - ovX(q.end)) < 9) ? 'ew-resize' : 'crosshair'; return; }
+  if (!d) {
+    const onEdge = E.src && E.segs.some((q) => Math.abs(x - ovX(q.start)) < 9 || Math.abs(x - ovX(q.end)) < 9);
+    const inRange = E.src && E.segs.some((q) => t >= q.start && t <= q.end);
+    ov.el.style.cursor = onEdge ? 'ew-resize' : inRange ? 'grab' : 'crosshair';
+    return;
+  }
   if (Math.abs(x - d.x0) > 4) d.moved = true;
   if (!d.moved) return;
+  if (d.mode === 'move') { // the whole range, keeping its length, inside the file
+    const q = E.segs[d.seg], len = q.end - q.start;
+    if (E.active !== d.seg) { E.active = d.seg; }
+    q.start = Math.max(0, Math.min(E.src.duration - len, d.s0 + t - d.t0)); q.end = q.start + len;
+    ov.el.style.cursor = 'grabbing';
+    setEdit('start', q.start);
+    return;
+  }
   const g = seg();
   if (d.mode === 'start' || d.mode === 'end') setEdit(d.mode, t);
   else if (d.mode === 'fadeIn') setEdit('fadeIn', Math.max(0, t - g.start));
@@ -330,7 +376,7 @@ ov.el.addEventListener('pointermove', (e) => {
 ov.el.addEventListener('pointerup', () => {
   const d = ov.drag; ov.drag = null;
   if (!d) return;
-  if (d.moved) { const g = seg(); if (g.end - g.start < .1) setEdit('end', g.start + .1); rebuild(true); return; }
+  if (d.moved) { const g = seg(); if (g.end - g.start < .1) setEdit('end', g.start + .1); rebuild(true); ov.el.style.cursor = 'grab'; return; }
   // a click inside a range: that range becomes active and the playhead jumps there
   const i = E.segs.findIndex((q) => d.t0 >= q.start && d.t0 <= q.end);
   if (i < 0) return;
@@ -800,6 +846,12 @@ function frame(now) {
   renderFrame(t, dt);
   $('time').textContent = $('time2').textContent = `${fmt(t)} / ${fmt(clip ? clip.duration : 0)}`;
   if (!scrubbing && clip) $('scrub').value = String(t / clip.duration);
+  if (clip && !ov.drag && !editDirty) anchorSrc = toSrc(t);
+  // while playing, the zoomed timeline follows the playhead page by page
+  if (E.src && player.playing && !ov.drag) {
+    const span = ov.v1 - ov.v0;
+    if (anchorSrc > ov.v1 || anchorSrc < ov.v0) setView(anchorSrc - span * .1, anchorSrc + span * .9);
+  }
   drawOverview();
   const now2 = cues.findIndex((q) => { const c = cueClip(q); return c && t >= c.start && t < c.end; });
   if (now2 !== shownCue) {

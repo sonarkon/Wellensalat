@@ -31,7 +31,8 @@ A browser tool that turns an audio file into an **animated waveform video** for 
 ## Audio and cut
 
 - **Ranges:** the tabs above the waveform. **+** adds another range (as long as the active one); the ranges are joined in the order of their tabs. ◀ ▶ reorder, ✕ removes.
-- On the waveform: drag = choose the active range anew · brackets **[ ]** = start / end · squares at the top = fades · click into a range = jump there.
+- On the waveform: brackets **[ ]** = start / end · squares at the top = fades · click into a range = jump there, **drag it to move the whole range** · drag outside the ranges = choose the active range anew.
+- **Zoom:** mouse wheel over the waveform (shift + wheel or a sideways swipe moves along), or − / + / ↔. While playing, the zoomed view follows the playhead.
 - **Fades** per range, with a soft, linear or exponential curve. Where a fade-out meets the next fade-in, the two ranges **cross-fade** (overlap = the shorter fade).
 - **Pause between ranges** puts silence between them instead; the fades then go out into the silence and come back from it.
 - **Normalize** (−1 dBFS) and a **level** control. A note appears when the clip gets longer than 60 or 90 seconds.

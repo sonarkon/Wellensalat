@@ -102,12 +102,13 @@ export function processClip(src, p) {
   return out;
 }
 
-// min / max per column over a whole buffer (mono mix), for the editor's overview
-export function columnPeaks(buf, cols) {
+// min / max per column (mono mix) between t0 and t1 seconds (default: the whole buffer), for the timeline
+export function columnPeaks(buf, cols, t0 = 0, t1 = buf.duration) {
   const n = buf.length, chs = buf.numberOfChannels, data = Array.from({ length: chs }, (_, c) => buf.getChannelData(c));
-  const mn = new Float32Array(cols), mx = new Float32Array(cols);
+  const mn = new Float32Array(cols), mx = new Float32Array(cols), sr = buf.sampleRate;
   for (let x = 0; x < cols; x++) {
-    const a = Math.floor(x / cols * n), b = Math.max(a + 1, Math.floor((x + 1) / cols * n));
+    const a = Math.min(n - 1, Math.max(0, Math.floor((t0 + x / cols * (t1 - t0)) * sr)));
+    const b = Math.min(n, Math.max(a + 1, Math.floor((t0 + (x + 1) / cols * (t1 - t0)) * sr)));
     let lo = 1, hi = -1;
     const step = Math.max(1, Math.floor((b - a) / 400)); // long files: sparse sampling is enough for a picture
     for (let i = a; i < b; i += step) {

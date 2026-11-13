@@ -67,7 +67,7 @@ export async function to16k(buf) {
 
 let worker = null;
 function run(msg, onEvent) {
-  worker = worker || new Worker(new URL('./wf-asr-worker.js?v=f0b985fb23', import.meta.url), { type: 'module' });
+  worker = worker || new Worker(new URL('./wf-asr-worker.js?v=7d491179de', import.meta.url), { type: 'module' });
   return new Promise((resolve, reject) => {
     worker.onmessage = (e) => {
       const m = e.data;

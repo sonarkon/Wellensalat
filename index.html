@@ -83,6 +83,7 @@
   .tl-top .grow, .tl-bottom .grow { flex: 1; }
   #segs { display: inline-flex; gap: 0; }
   #segs button { min-width: 2.8em; border-bottom-width: 0; }
+  .zoom button { padding: 2px 9px; font-size: 13px; }
   #segs button + button { border-left-width: 0; }
   #ov { width: 100%; height: 170px; display: block; cursor: crosshair; touch-action: none; background: #000; border: 2px solid rgba(var(--ink), .8); }
   #drop { display: inline-flex; border: 2px dashed rgba(var(--ink), .7); padding: 4px 10px; cursor: pointer; color: rgb(var(--ink)); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
@@ -192,14 +193,16 @@
         <span class="grow"></span>
         <details class="help"><summary>?</summary>
           <div class="hint" data-de="Datei laden: Knopf oder irgendwo auf die Seite ziehen (auch Bilder und Projektdateien).<br>
-            Wellenform: Ziehen = aktiven Bereich neu wählen · Klammern [ ] = Start/Ende · Quadrate oben = Fades ·
-            Klick in einen Bereich = dorthin springen.<br>
+            Wellenform: Klammern [ ] = Start/Ende · Quadrate oben = Fades · in einem Bereich klicken = dorthin springen,
+            ziehen = ganzen Bereich verschieben · außerhalb ziehen = aktiven Bereich neu wählen.<br>
+            Zoom: Mausrad über der Wellenform (Shift + Rad oder seitlich wischen verschiebt) oder − / + / ↔.<br>
             <kbd>Leertaste</kbd> Abspielen · <kbd>I</kbd> / <kbd>O</kbd> Start / Ende an der Abspielposition.<br>
             Bereiche werden in der Reihenfolge der Reiter aneinandergehängt. Ohne Pause blenden Fade-out und
             Fade-in ineinander (Überlappung = der kürzere Fade), mit Pause liegt Stille dazwischen.">
             Load a file: the button, or drop it anywhere on the page (pictures and project files too).<br>
-            Waveform: drag = choose the active range anew · brackets [ ] = start/end · squares at the top = fades ·
-            click into a range = jump there.<br>
+            Waveform: brackets [ ] = start/end · squares at the top = fades · click into a range = jump there,
+            drag it = move the whole range · drag outside = choose the active range anew.<br>
+            Zoom: mouse wheel over the waveform (shift + wheel or a sideways swipe moves) or − / + / ↔.<br>
             <kbd>Space</kbd> play · <kbd>I</kbd> / <kbd>O</kbd> start / end at the play position.<br>
             Ranges are joined in the order of their tabs. Without a pause, fade-out and fade-in cross-fade
             (overlap = the shorter fade); with a pause there is silence between them.
@@ -212,6 +215,10 @@
         <button id="segAdd" title="Add another range (as long as the active one)" data-de-title="Weiteren Bereich anhängen (so lang wie der aktive)" style="border-bottom-width:0">+</button>
         <span id="segHint" hidden></span>
         <span class="grow"></span>
+        <span class="seg zoom" title="Zoom: mouse wheel over the waveform · shift + wheel moves" data-de-title="Zoom: Mausrad über der Wellenform · Shift + Rad verschiebt">
+          <button id="zoomOut" title="Zoom out" data-de-title="Herauszoomen">−</button><button id="zoomIn" title="Zoom in at the playhead" data-de-title="Am Abspielkopf hineinzoomen">+</button><button id="zoomFit" title="Whole file" data-de-title="Ganze Datei">↔</button>
+        </span>
+        <span class="val" id="zoomV" style="min-width:3em"></span>
         <span class="muted" style="font-size:12px"><span data-de="GESAMT">TOTAL</span> <span class="val" id="total">–</span> <span id="lenwarn"></span></span>
       </div>
       <canvas id="ov"></canvas>
@@ -411,6 +418,6 @@
   <a id="kofi" href="#" target="_blank" rel="noopener" hidden>♥ Ko-fi</a>
   <a id="version" href="#" target="_blank" rel="noopener" title="Source code on GitHub" data-de-title="Quellcode auf GitHub"></a>
 </footer>
-<script type="module" src="./js/wf-app.js?v=f0b985fb23"></script>
+<script type="module" src="./js/wf-app.js?v=7d491179de"></script>
 </body>
 </html>

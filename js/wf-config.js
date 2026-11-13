@@ -3,7 +3,7 @@
 export const APP = {
   name: 'Wellensalat',
   version: '1.0.0',
-  build: '583ff3fc3a',
+  build: 'f0b985fb23',
   repo: 'https://github.com/sonarkon/Wellensalat',
   kofi: 'https://ko-fi.com/S7Z228X1UL',   // empty = no Ko-fi link in the footer
 };

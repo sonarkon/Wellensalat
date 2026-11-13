@@ -3,7 +3,7 @@
 //      H.264 + AAC, muxed with mp4-muxer (loaded from the CDN only when needed).
 //   2. Fallback MediaRecorder: records the running preview in real time (MP4 where the browser
 //      can, otherwise WebM). The tab must stay in front while it records.
-import { t as tr } from './wf-i18n.js?v=583ff3fc3a';
+import { t as tr } from './wf-i18n.js?v=f0b985fb23';
 
 const MUXER_URL = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/+esm';
 // level 4.2: 1080x1920 at up to 60 fps
@@ -43,7 +43,18 @@ export async function exportWebCodecs({ canvas, fps, clip, cfg, renderFrame, onP
   let fail = null;
   const venc = new VideoEncoder({ output: (ch, meta) => muxer.addVideoChunk(ch, meta), error: (e) => { fail = e; } });
   venc.configure(cfg.video);
-  const aenc = new AudioEncoder({ output: (ch, meta) => muxer.addAudioChunk(ch, meta), error: (e) => { fail = e; } });
+  // where the encoded audio really ends: AAC adds a little priming/padding, so it runs a few
+  // milliseconds past the clip. The video is held on its last frame until then (otherwise players
+  // show black at the end, where only audio is left).
+  let aFirst = null, aEnd = 0;
+  const aenc = new AudioEncoder({
+    output: (ch, meta) => {
+      if (aFirst === null) aFirst = ch.timestamp;
+      aEnd = Math.max(aEnd, ch.timestamp + (ch.duration || 0));
+      muxer.addAudioChunk(ch, meta);
+    },
+    error: (e) => { fail = e; },
+  });
   aenc.configure(cfg.audio);
 
   // audio: the processed clip in blocks of 4096 frames
@@ -55,8 +66,12 @@ export async function exportWebCodecs({ canvas, fps, clip, cfg, renderFrame, onP
     aenc.encode(ad); ad.close();
   }
 
-  // video: every frame rendered and encoded in turn
-  const frames = Math.ceil(clip.duration * fps), dur = Math.round(1e6 / fps);
+  await aenc.flush();
+  if (fail) throw fail;
+
+  // video: every frame rendered and encoded in turn, at least as long as the audio
+  const audioSec = aFirst === null ? clip.duration : (aEnd - aFirst) / 1e6;
+  const frames = Math.ceil(Math.max(clip.duration, audioSec) * fps - 1e-6), dur = Math.round(1e6 / fps);
   // the afterglow needs a few frames to settle on the first picture
   for (let k = 0; k < 12; k++) renderFrame(0, 1 / fps);
   const check = () => {
@@ -76,7 +91,7 @@ export async function exportWebCodecs({ canvas, fps, clip, cfg, renderFrame, onP
   const t0 = performance.now();
   for (let i = 0; i < frames; i++) {
     check();
-    renderFrame(i / fps, 1 / fps);
+    renderFrame(Math.min(i / fps, clip.duration), 1 / fps);   // past the clip's end: hold the last picture
     const vf = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps), duration: dur });
     venc.encode(vf, { keyFrame: i % (fps * 2) === 0 });
     vf.close();
@@ -91,7 +106,7 @@ export async function exportWebCodecs({ canvas, fps, clip, cfg, renderFrame, onP
   await drain(0);
   // flush, but with a time limit (a stuck hardware encoder would otherwise hang here)
   const limit = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(tr('ex.stall'))), STALL_MS * 3))]);
-  await limit(venc.flush()); await limit(aenc.flush());
+  await limit(venc.flush());
   if (fail) throw fail;
   muxer.finalize();
   venc.close(); aenc.close();

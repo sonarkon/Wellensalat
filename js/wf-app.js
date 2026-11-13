@@ -1,14 +1,14 @@
 // Wellensalat: audio → waveform video (Reels, Shorts, YouTube). Import, cut, fade, pick a view and a
 // look (phosphor raster or Hitchhiker vector – the Augmentor's themes 'phosphor' and 'guide'),
 // add text and subtitles, export an MP4. English by default, German as an option (wf-i18n.js).
-import { Post } from './post.js?v=583ff3fc3a';
-import { THEMES } from './theme.js?v=583ff3fc3a';
-import { Scene, VIEWS, FORMATS } from './wf-scene.js?v=583ff3fc3a';
-import { Analysis, processClip, demoBuffer, decodeFile, columnPeaks, CURVES, layoutSegs, clipToSrc, srcToClip } from './wf-audio.js?v=583ff3fc3a';
-import { toSRT, parseSRT, chunksToCues, to16k, transcribe, diarize, assignSpeakers, speakersOf } from './wf-subs.js?v=583ff3fc3a';
-import { webCodecsConfig, exportWebCodecs, exportRecorder, recorderMime } from './wf-export.js?v=583ff3fc3a';
-import { t as tr, setLang, getLang, dec } from './wf-i18n.js?v=583ff3fc3a';
-import { APP } from './wf-config.js?v=583ff3fc3a';
+import { Post } from './post.js?v=f0b985fb23';
+import { THEMES } from './theme.js?v=f0b985fb23';
+import { Scene, VIEWS, FORMATS } from './wf-scene.js?v=f0b985fb23';
+import { Analysis, processClip, demoBuffer, decodeFile, columnPeaks, CURVES, layoutSegs, clipToSrc, srcToClip } from './wf-audio.js?v=f0b985fb23';
+import { toSRT, parseSRT, chunksToCues, to16k, transcribe, diarize, assignSpeakers, speakersOf } from './wf-subs.js?v=f0b985fb23';
+import { webCodecsConfig, exportWebCodecs, exportRecorder, recorderMime } from './wf-export.js?v=f0b985fb23';
+import { t as tr, setLang, getLang, dec } from './wf-i18n.js?v=f0b985fb23';
+import { APP } from './wf-config.js?v=f0b985fb23';
 
 const $ = (id) => document.getElementById(id);
 $('noapp')?.remove();   // the script runs

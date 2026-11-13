@@ -2,9 +2,9 @@
 // low-res canvas, in white "roles" like ui.js. post.js then makes phosphor or Guide out of it.
 //   phosphor: 360x640 raster (the same pixel size as the stage FUI's 640x360 grid), pixel font
 //   guide:    720x1280, antialiased vector lines, monospaced vector font, theme colours
-import { matrixText, matrixWidth, setRes, bigText, bigWidth, isBig } from './font.js?v=7d491179de';
-import { THEMES, inkOf } from './theme.js?v=7d491179de';
-import { t as tr, dec } from './wf-i18n.js?v=7d491179de';
+import { matrixText, matrixWidth, setRes, bigText, bigWidth, isBig } from './font.js?v=15814d4cc9';
+import { THEMES, inkOf } from './theme.js?v=15814d4cc9';
+import { t as tr, dec } from './wf-i18n.js?v=15814d4cc9';
 
 // view keys; their names come from wf-i18n.js (view.<key>)
 export const VIEWS = [['scope'], ['xy'], ['spectrum'], ['waterfall'], ['envelope']];
@@ -20,6 +20,7 @@ export const FORMATS = {
   '16:9': { w: 1920, h: 1080, name: '16:9', hint: 'YouTube · Querformat', L: { mx: 138, label: 105, title: 183, by: 216, bh: 570, read: 828, strip: 849, sh: 45, sub: 954 } },
 };
 const SUB_PX = 48, SUB_LH = 60;
+const TEXT_FIT = [{ px: 48, lh: 60, n: 2 }, { px: 38, lh: 46, n: 3 }, { px: 30, lh: 37, n: 4 }];
 const AGE_INK = ['base', 'orange', 'pink', 'violet', 'blue'];
 const BAND_INKS = ['red', 'orange', 'base', 'label', 'cyan', 'blue', 'violet'];
 
@@ -249,7 +250,16 @@ export class Scene {
       const pg = Math.min(pages - 1, Math.floor((t - cue.start) / span));
       lines = all.slice(pg * 2, pg * 2 + 2);
       typed = Math.floor((t - cue.start - pg * span) * 45);
-    } else if (o.text) lines = this.wrap(o.text, SUB_PX, L.bw).slice(0, 2);
+    } else if (o.text) {
+      // the fixed text: two lines at full size; longer, it gets smaller (up to four lines in the same place,
+      // cap tops aligned); longer still, it runs through as a ticker
+      const fit = TEXT_FIT.map((f) => ({ ...f, lines: this.wrap(o.text, f.px, L.bw) })).find((f) => f.lines.length <= f.n);
+      this.ink('base');
+      if (!fit) { this.line(String(o.text).replace(/\s+/g, ' ').trim(), L.sub, SUB_PX, t, 1); return; }
+      const y0 = L.sub - Math.round((SUB_PX - fit.px) * .74);
+      fit.lines.forEach((ln, i) => ln && this.text(ln, L.bx, y0 + i * fit.lh, fit.px));
+      return;
+    }
     if (!lines || !lines.length) return;
     this.ink(right && this.smooth ? 'cyan' : 'base');
     let left = typed, cx = L.bx, cy = L.sub;

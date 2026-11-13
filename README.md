@@ -76,7 +76,7 @@ A picture always **fills the frame**: *size* (100–400 %) and *left/right*, *up
 ## Text
 
 - **Header** (small) and **title** (large) at the top. The title can be **typed in** like a terminal line. Anything too wide runs through as a **ticker**.
-- A fixed **text** line at the bottom, shown while no subtitle is running.
+- A fixed **text** at the bottom, shown while no subtitle is running. Two lines at full size; a longer text gets smaller (up to four lines), anything longer still runs through as a ticker.
 
 ## Subtitles
 

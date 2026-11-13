@@ -114,7 +114,7 @@ then open http://localhost:8000. Adding `#at=5.2` to the address opens the demo 
 
 ## Version
 
-The footer shows the version and a build id (the content hash of the files), e.g. *Wellensalat v1.0.0 · ecd7f97*. Saved projects record the version they were made with.
+The footer shows the version and a build id (the content hash of the files), e.g. *Wellensalat v1.0.0 · 583ff3f* – click it to get to this repository. Saved projects record the version they were made with.
 
 ## Credits
 
